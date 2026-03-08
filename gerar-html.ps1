@@ -81,9 +81,7 @@ $html = @"
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Informark Dashboard</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             font-family: Arial, sans-serif;
@@ -94,7 +92,7 @@ $html = @"
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1450px;
             margin: 0 auto;
         }
 
@@ -118,9 +116,20 @@ $html = @"
             font-size: 15px;
         }
 
+        .pill {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
         .stats {
             display: grid;
-            grid-template-columns: repeat(4, minmax(180px, 1fr));
+            grid-template-columns: repeat(5, minmax(160px, 1fr));
             gap: 14px;
             margin-bottom: 18px;
         }
@@ -139,9 +148,10 @@ $html = @"
         }
 
         .stat-value {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
             color: #111827;
+            word-break: break-word;
         }
 
         .main-card {
@@ -197,7 +207,7 @@ $html = @"
 
         .filtros {
             display: grid;
-            grid-template-columns: repeat(5, minmax(160px, 1fr));
+            grid-template-columns: repeat(7, minmax(140px, 1fr));
             gap: 10px;
             margin: 15px 0 12px 0;
         }
@@ -227,7 +237,7 @@ $html = @"
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 900px;
+            min-width: 1000px;
             background: white;
         }
 
@@ -250,28 +260,17 @@ $html = @"
             background: #f8fafc;
         }
 
-        .pill {
-            display: inline-block;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: #e2e8f0;
-            color: #0f172a;
-            font-size: 12px;
-            font-weight: bold;
-            margin-top: 8px;
-        }
-
-        @media (max-width: 1000px) {
+        @media (max-width: 1200px) {
             .stats {
-                grid-template-columns: repeat(2, minmax(140px, 1fr));
+                grid-template-columns: repeat(3, minmax(140px, 1fr));
             }
 
             .filtros {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 700px) {
             body {
                 padding: 12px;
             }
@@ -292,8 +291,12 @@ $html = @"
                 grid-template-columns: 1fr 1fr;
             }
 
+            .filtros {
+                grid-template-columns: 1fr;
+            }
+
             .stat-value {
-                font-size: 22px;
+                font-size: 20px;
             }
         }
     </style>
@@ -316,8 +319,12 @@ $html = @"
                 <div class="stat-value" id="statModelos">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Produto filtrado</div>
-                <div class="stat-value" id="statProduto">Todos</div>
+                <div class="stat-label">Menor preço visível</div>
+                <div class="stat-value" id="statMinPreco">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Maior preço visível</div>
+                <div class="stat-value" id="statMaxPreco">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Aba atual</div>
@@ -338,17 +345,16 @@ $html = @"
 
                 <div class="filtros">
                     <input type="text" id="buscaRelatorio" placeholder="Buscar no relatório...">
-                    <select id="produtoRelatorio">
-                        <option value="">Todos os produtos</option>
-                    </select>
-                    <select id="modeloRelatorio">
-                        <option value="">Todos os modelos</option>
-                    </select>
-                    <select id="gbRelatorio">
-                        <option value="">Todos os GB</option>
-                    </select>
-                    <select id="condicaoRelatorio">
-                        <option value="">Todas as condições</option>
+                    <select id="produtoRelatorio"><option value="">Todos os produtos</option></select>
+                    <select id="modeloRelatorio"><option value="">Todos os modelos</option></select>
+                    <select id="gbRelatorio"><option value="">Todos os GB</option></select>
+                    <select id="condicaoRelatorio"><option value="">Todas as condições</option></select>
+                    <input type="number" id="precoMinRelatorio" placeholder="Preço mínimo">
+                    <input type="number" id="precoMaxRelatorio" placeholder="Preço máximo">
+                    <select id="ordenacaoRelatorio">
+                        <option value="">Ordenação padrão</option>
+                        <option value="preco-asc">Preço: menor para maior</option>
+                        <option value="preco-desc">Preço: maior para menor</option>
                     </select>
                 </div>
 
@@ -361,17 +367,16 @@ $html = @"
 
                 <div class="filtros">
                     <input type="text" id="buscaPrecos" placeholder="Buscar na planilha de preços...">
-                    <select id="produtoPrecos">
-                        <option value="">Todos os produtos</option>
-                    </select>
-                    <select id="modeloPrecos">
-                        <option value="">Todos os modelos</option>
-                    </select>
-                    <select id="gbPrecos">
-                        <option value="">Todos os GB</option>
-                    </select>
-                    <select id="condicaoPrecos">
-                        <option value="">Todas as condições</option>
+                    <select id="produtoPrecos"><option value="">Todos os produtos</option></select>
+                    <select id="modeloPrecos"><option value="">Todos os modelos</option></select>
+                    <select id="gbPrecos"><option value="">Todos os GB</option></select>
+                    <select id="condicaoPrecos"><option value="">Todas as condições</option></select>
+                    <input type="number" id="precoMinPrecos" placeholder="Preço mínimo">
+                    <input type="number" id="precoMaxPrecos" placeholder="Preço máximo">
+                    <select id="ordenacaoPrecos">
+                        <option value="">Ordenação padrão</option>
+                        <option value="preco-asc">Preço: menor para maior</option>
+                        <option value="preco-desc">Preço: maior para menor</option>
                     </select>
                 </div>
 
@@ -382,8 +387,6 @@ $html = @"
     </div>
 
     <script>
-        let abaAtual = 'Menor Preço';
-
         function abrirAba(idAba, botao, nomeAba) {
             document.querySelectorAll('.tab-content').forEach(function(aba) {
                 aba.classList.remove('active');
@@ -396,7 +399,6 @@ $html = @"
             document.getElementById(idAba).classList.add('active');
             botao.classList.add('active');
 
-            abaAtual = nomeAba;
             document.getElementById('statAba').textContent = nomeAba;
             atualizarStatsGerais();
         }
@@ -423,7 +425,8 @@ $html = @"
                 produto: acharIndiceExatoOuParcial(['produto', 'tipo', 'categoria']),
                 modelo: acharIndiceExatoOuParcial(['modelo', 'nome modelo']),
                 gb: acharIndiceExatoOuParcial(['gb', 'armazenamento', 'memoria', 'memória', 'capacidade']),
-                condicao: acharIndiceExatoOuParcial(['condicao', 'condição', 'estado'])
+                condicao: acharIndiceExatoOuParcial(['condicao', 'condição', 'estado']),
+                preco: acharIndiceExatoOuParcial(['preco', 'preço', 'valor'])
             };
         }
 
@@ -433,7 +436,6 @@ $html = @"
 
             const valorAtual = select.value;
             const primeiroOption = select.options[0].outerHTML;
-
             select.innerHTML = primeiroOption;
 
             valores
@@ -449,6 +451,18 @@ $html = @"
             select.value = valorAtual;
         }
 
+        function extrairNumeroPreco(texto) {
+            if (!texto) return NaN;
+            const limpo = texto
+                .toString()
+                .replace(/R\$/gi, '')
+                .replace(/\s+/g, '')
+                .replace(/\./g, '')
+                .replace(/,/g, '.')
+                .replace(/[^\d.-]/g, '');
+            return parseFloat(limpo);
+        }
+
         function atualizarStatsGerais() {
             const abaAtiva = document.querySelector('.tab-content.active');
             if (!abaAtiva) return;
@@ -460,42 +474,45 @@ $html = @"
             document.getElementById('statRegistros').textContent = linhasVisiveis.length;
 
             const ths = Array.from(tabela.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
-            let idxModelo = ths.findIndex(t => t === 'modelo' || t.includes('modelo'));
-            let idxProduto = ths.findIndex(t => t === 'produto' || t.includes('produto'));
+            const idxModelo = ths.findIndex(t => t === 'modelo' || t.includes('modelo'));
+            const idxPreco = ths.findIndex(t => t === 'preço' || t === 'preco' || t.includes('preço') || t.includes('preco'));
 
             const modelos = new Set();
-            const produtos = new Set();
+            const precos = [];
 
             linhasVisiveis.forEach(linha => {
                 const tds = linha.querySelectorAll('td');
                 if (idxModelo >= 0 && tds[idxModelo]) modelos.add(tds[idxModelo].innerText.trim());
-                if (idxProduto >= 0 && tds[idxProduto]) produtos.add(tds[idxProduto].innerText.trim());
+                if (idxPreco >= 0 && tds[idxPreco]) {
+                    const n = extrairNumeroPreco(tds[idxPreco].innerText.trim());
+                    if (!isNaN(n)) precos.push(n);
+                }
             });
 
             document.getElementById('statModelos').textContent = modelos.size;
-
-            const produtoSelecionado = abaAtiva.id === 'abaRelatorio'
-                ? (document.getElementById('produtoRelatorio')?.value || 'Todos')
-                : (document.getElementById('produtoPrecos')?.value || 'Todos');
-
-            document.getElementById('statProduto').textContent = produtoSelecionado || 'Todos';
+            document.getElementById('statMinPreco').textContent = precos.length ? 'R$ ' + Math.min(...precos).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+            document.getElementById('statMaxPreco').textContent = precos.length ? 'R$ ' + Math.max(...precos).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
         }
 
         function configurarFiltros(config) {
             const tabela = document.getElementById(config.tabelaId);
             if (!tabela) return;
 
+            const tbody = tabela.querySelector('tbody');
             const busca = document.getElementById(config.buscaId);
             const produtoSelect = document.getElementById(config.produtoId);
             const modeloSelect = document.getElementById(config.modeloId);
             const gbSelect = document.getElementById(config.gbId);
             const condicaoSelect = document.getElementById(config.condicaoId);
+            const precoMinInput = document.getElementById(config.precoMinId);
+            const precoMaxInput = document.getElementById(config.precoMaxId);
+            const ordenacaoSelect = document.getElementById(config.ordenacaoId);
             const resumo = document.getElementById(config.resumoId);
 
             const indices = detectarIndices(config.tabelaId);
 
             function obterLinhas() {
-                return Array.from(document.querySelectorAll('#' + config.tabelaId + ' tbody tr'));
+                return Array.from(tbody.querySelectorAll('tr'));
             }
 
             function popularFiltros() {
@@ -521,14 +538,36 @@ $html = @"
                 preencherSelectComValores(config.condicaoId, Array.from(condicoes));
             }
 
+            function ordenarLinhas(linhas) {
+                const tipoOrdenacao = ordenacaoSelect?.value || '';
+                if (!tipoOrdenacao || indices.preco < 0) return linhas;
+
+                return linhas.sort((a, b) => {
+                    const aTds = a.querySelectorAll('td');
+                    const bTds = b.querySelectorAll('td');
+
+                    const aPreco = aTds[indices.preco] ? extrairNumeroPreco(aTds[indices.preco].innerText) : NaN;
+                    const bPreco = bTds[indices.preco] ? extrairNumeroPreco(bTds[indices.preco].innerText) : NaN;
+
+                    const av = isNaN(aPreco) ? 0 : aPreco;
+                    const bv = isNaN(bPreco) ? 0 : bPreco;
+
+                    if (tipoOrdenacao === 'preco-asc') return av - bv;
+                    if (tipoOrdenacao === 'preco-desc') return bv - av;
+                    return 0;
+                });
+            }
+
             function aplicarFiltros() {
-                const linhas = obterLinhas();
+                let linhas = obterLinhas();
 
                 const termo = (busca?.value || '').toLowerCase().trim();
                 const produto = (produtoSelect?.value || '').toLowerCase().trim();
                 const modelo = (modeloSelect?.value || '').toLowerCase().trim();
                 const gb = (gbSelect?.value || '').toLowerCase().trim();
                 const condicao = (condicaoSelect?.value || '').toLowerCase().trim();
+                const precoMin = parseFloat(precoMinInput?.value || '');
+                const precoMax = parseFloat(precoMaxInput?.value || '');
 
                 let visiveis = 0;
 
@@ -540,18 +579,24 @@ $html = @"
                     const valorModelo = (indices.modelo >= 0 && tds[indices.modelo]) ? tds[indices.modelo].innerText.toLowerCase().trim() : '';
                     const valorGb = (indices.gb >= 0 && tds[indices.gb]) ? tds[indices.gb].innerText.toLowerCase().trim() : '';
                     const valorCondicao = (indices.condicao >= 0 && tds[indices.condicao]) ? tds[indices.condicao].innerText.toLowerCase().trim() : '';
+                    const valorPreco = (indices.preco >= 0 && tds[indices.preco]) ? extrairNumeroPreco(tds[indices.preco].innerText) : NaN;
 
                     const okBusca = !termo || texto.includes(termo);
                     const okProduto = !produto || valorProduto === produto;
                     const okModelo = !modelo || valorModelo === modelo;
                     const okGb = !gb || valorGb === gb;
                     const okCondicao = !condicao || valorCondicao === condicao;
+                    const okPrecoMin = isNaN(precoMin) || (!isNaN(valorPreco) && valorPreco >= precoMin);
+                    const okPrecoMax = isNaN(precoMax) || (!isNaN(valorPreco) && valorPreco <= precoMax);
 
-                    const mostrar = okBusca && okProduto && okModelo && okGb && okCondicao;
+                    const mostrar = okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
                     linha.style.display = mostrar ? '' : 'none';
 
                     if (mostrar) visiveis++;
                 });
+
+                const linhasOrdenadas = ordenarLinhas(obterLinhas());
+                linhasOrdenadas.forEach(linha => tbody.appendChild(linha));
 
                 if (resumo) {
                     resumo.textContent = visiveis + ' registro(s) encontrado(s)';
@@ -563,7 +608,7 @@ $html = @"
             popularFiltros();
             aplicarFiltros();
 
-            [busca, produtoSelect, modeloSelect, gbSelect, condicaoSelect].forEach(el => {
+            [busca, produtoSelect, modeloSelect, gbSelect, condicaoSelect, precoMinInput, precoMaxInput, ordenacaoSelect].forEach(el => {
                 if (el) {
                     el.addEventListener('input', aplicarFiltros);
                     el.addEventListener('change', aplicarFiltros);
@@ -578,6 +623,9 @@ $html = @"
             modeloId: 'modeloRelatorio',
             gbId: 'gbRelatorio',
             condicaoId: 'condicaoRelatorio',
+            precoMinId: 'precoMinRelatorio',
+            precoMaxId: 'precoMaxRelatorio',
+            ordenacaoId: 'ordenacaoRelatorio',
             resumoId: 'resumoRelatorio'
         });
 
@@ -588,6 +636,9 @@ $html = @"
             modeloId: 'modeloPrecos',
             gbId: 'gbPrecos',
             condicaoId: 'condicaoPrecos',
+            precoMinId: 'precoMinPrecos',
+            precoMaxId: 'precoMaxPrecos',
+            ordenacaoId: 'ordenacaoPrecos',
             resumoId: 'resumoPrecos'
         });
 
@@ -600,4 +651,4 @@ $html = @"
 $destino = Join-Path $docs "index.html"
 [System.IO.File]::WriteAllText($destino, $html, [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "HTML gerado em docs\index.html - dashboard 2.0"
+Write-Host "HTML gerado em docs\index.html - dashboard 3.0"
