@@ -1225,11 +1225,8 @@ function limparTextoBase(s) {
 
 function inferirIphoneSemPalavra(bloco) {
   const x = limparTextoBase(bloco)
-    .replace(/\b(\d{2})promax\b/g, "$1 pro max")
-    .replace(/\b(\d{2})pro\b/g, "$1 pro")
-    .replace(/\b(\d{2})plus\b/g, "$1 plus")
-    .replace(/\b(\d{2})mini\b/g, "$1 mini")
     .replace(/\bpromax\b/g, "pro max")
+    .replace(/\b17pm\b/g, "17 pro max")
     .replace(/\b(\d{2})pm\b/g, "$1 pro max");
 
   const m =
@@ -1249,11 +1246,7 @@ function inferirIphoneSemPalavra(bloco) {
   else if (sufRaw === "max") suf = "Max";
   else if (sufRaw === "mini") suf = "Mini";
 
-  return {
-    produto: "iPhone",
-    modelo: [modeloNum, suf].filter(Boolean).join(" "),
-    armazenamento: arm
-  };
+  return { produto: "iPhone", modelo: [modeloNum, suf].filter(Boolean).join(" "), armazenamento: arm };
 }
 
 function temContextoDeProduto(texto) {
