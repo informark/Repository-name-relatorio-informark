@@ -1073,152 +1073,6 @@ function ehVCard(texto) {
   return /BEGIN:VCARD/i.test(texto) || /END:VCARD/i.test(texto) || /X-WA-LID:/i.test(texto) || /TEL;waid=/i.test(texto);
 }
 
-function normalizarNumeroPreco(bruto) {
-  if (!bruto) return null;
-
-  let s = bruto.toString().trim();
-
-  // remove moeda e espaços
-  s = s.replace(/[Rr]\$\s?/g, "").replace(/\$/g, "").replace(/\s+/g, "");
-
-  // caso BR: 5.150,00
-  if (s.includes(",") && s.includes(".")) {
-    s = s.replace(/\./g, "").replace(",", ".");
-  }
-  // caso BR sem milhar: 2350,00
-  else if (s.includes(",")) {
-    s = s.replace(",", ".");
-  }
-  // caso 5.150
-  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    s = s.replace(/\./g, "");
-  }
-
-  s = s.replace(/[^0-9.]/g, "");
-
-  const n = parseFloat(s);
-  if (isNaN(n)) return null;
-
-  if (n < 50 || n > 50000) return null;
-
-  return n;
-}
-
-function extrairPrecoDaLinhaComMoeda(texto) {
-  if (!texto) return null;
-
-  const linhas = texto
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  // prioridade total para linhas com 💰, R$, $
-  for (const linha of linhas) {
-    if (!/[💰$]|r\$/i.test(linha)) continue;
-
-    const m = linha.match(/(?:💰|r\$|\$)\s*([\d.,]{2,20})/i);
-    if (m) {
-      const valor = normalizarNumeroPreco(m[1]);
-      if (valor !== null) {
-        return valor;
-      }
-    }
-  }
-
-  return null;
-}
-
-function extrairPrecoFallbackUltimoNumero(texto) {
-  if (!texto) return null;
-
-  // ✅ sem contexto de produto e sem contexto de preço = não pega
-  const contextoProduto = temContextoDeProduto(texto);
-  const contextoPreco = temContextoForteDePreco(texto);
-
-  // regra principal: só aceita fallback se houver contexto de produto
-  if (!contextoProduto) return null;
-
-  const linhas = texto
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  for (let i = linhas.length - 1; i >= 0; i--) {
-    const linha = linhas[i];
-
-    // ignora linha de bateria/saúde
-    if (/🔋|bateria|saude|saúde|%\b/i.test(linha)) continue;
-
-    // ignora telefone
-    const soDigitos = linha.replace(/\D/g, "");
-    const pareceTelefone = /^\+?\s*\d[\d\s().\-–—]{6,}\d\s*$/.test(linha);
-    if (pareceTelefone && soDigitos.length >= 10 && soDigitos.length <= 13) continue;
-
-    // ignora ano
-    if (/^\s*(19|20)\d{2}\s*$/.test(linha)) continue;
-
-    const matches = [...linha.matchAll(/\b(\d{3,5}(?:[.,]\d{2})?|\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\b/g)];
-    if (!matches.length) continue;
-
-    const ultimo = matches[matches.length - 1][1];
-    const valor = normalizarNumeroPreco(ultimo);
-
-    if (valor === null) continue;
-    if (valor < 500) continue;
-
-    // ✅ se não tem símbolo de moeda, exige que a linha tenha contexto de item
-    const linhaTemContextoItem =
-      /\b(iphone|ipad|macbook|watch|jbl)\b/i.test(linha) ||
-      !!extrairModeloIphoneDefinitivo(linha) ||
-      /\b(64|128|256|512)\s*gb\b/i.test(linha) ||
-      /\b(pro\s*max|pro|max|plus|mini|xr|xs|16e)\b/i.test(linha);
-
-    // aceita:
-    // - linha com contexto de item
-    // - ou mensagem geral com contexto de preço forte
-    if (!linhaTemContextoItem && !contextoPreco) continue;
-
-    return valor;
-  }
-
-  return null;
-}
-
-function temContextoForteDePreco(texto) {
-  if (!texto) return false;
-
-  const t = texto.toString().toLowerCase();
-
-  // moeda ou palavras de preço
-  if (/[💰$]|r\$/i.test(t)) return true;
-  if (/\b(preco|preço|valor|pix|avista|à vista|a vista|por)\b/i.test(t)) return true;
-  if (/\bde\b.*\bpor\b/i.test(t)) return true;
-
-  return false;
-}
-
-function temContextoDeProduto(texto) {
-  if (!texto) return false;
-
-  const t = texto.toString();
-
-  const produto = detectarProduto(t);
-  const modeloIphone = extrairModeloIphoneDefinitivo(t);
-  const armazenamento = detectarArmazenamento(t);
-
-  // produto claro
-  if (produto && produto !== "Outro") return true;
-
-  // modelo claro de iPhone
-  if (modeloIphone) return true;
-
-  // armazenamento sozinho NÃO basta
-  // então aqui ele só vale se tiver também número de linha de item
-  if (armazenamento && /\b(iphone|ipad|macbook|watch|jbl)\b/i.test(t)) return true;
-
-  return false;
-}
-
 
 // =========================
 // 7) EXTRAÇÃO DE PREÇO / PRODUTO / MODELO / ETC.
@@ -1226,54 +1080,21 @@ function temContextoDeProduto(texto) {
 function extrairPreco(texto) {
   if (!texto) return null;
 
-  const original = texto.toString();
-  const contextoProduto = temContextoDeProduto(original);
-  const contextoPreco = temContextoForteDePreco(original);
-
-  // =========================
-  // 1) PRIORIDADE MÁXIMA:
-  // preço em linha com 💰 / R$ / $
-  // =========================
-  const precoLinhaMoeda = extrairPrecoDaLinhaComMoeda(original);
-  if (precoLinhaMoeda !== null) {
-  console.log("💲 Preço capturado por linha com moeda:", precoLinhaMoeda);
-  return precoLinhaMoeda;
-}
-
-  // =========================
-  // 2) CASO "DE X POR Y"
-  // =========================
-  const t = original.replace(/@\d{8,}/g, " ");
+  const t = texto.toString().replace(/@\d{8,}/g, " ");
   const tt = t.replace(/(\d),(?=\d{3}\b)/g, "$1.");
   const ttt = tt.replace(/(\d{1,5}(?:\.\d{3})*),(?!\d)/g, "$1,00");
 
   const reDePor =
     /de\s*(?:r\$|\$)?\s*(\d{1,3}(?:\.\d{3})+|\d{3,5})(?:,(\d{2}))?\s*por\s*(?:r\$|\$)?\s*(\d{1,3}(?:\.\d{3})+|\d{3,5})(?:,(\d{2}))?/i;
-
   const mp = ttt.match(reDePor);
 
   if (mp) {
     const a = parseFloat(mp[1].replace(/\./g, "") + "." + (mp[2] || "00"));
     const b = parseFloat(mp[3].replace(/\./g, "") + "." + (mp[4] || "00"));
-
     if (!isNaN(b) && b >= 200 && b <= 50000) return b;
     if (!isNaN(a) && a >= 200 && a <= 50000) return a;
   }
 
-  // =========================
-  // 3) FALLBACK PROFISSIONAL:
-  // pega último número confiável da mensagem
-  // =========================
-  const fallback = extrairPrecoFallbackUltimoNumero(original);
-  if (fallback !== null) {
-  console.log("💲 Preço capturado por fallback:", fallback);
-  return fallback;
-}
-
-  // =========================
-  // 4) ÚLTIMO RECURSO:
-  // scanner geral antigo, mas mais protegido
-  // =========================
   const re = /(?:r\$|\$)?\s*\b(\d{1,3}(?:\.\d{3})+|\d{3,5})(?:,(\d{2}))?\b/gi;
 
   const valores = [];
@@ -1288,42 +1109,60 @@ function extrairPreco(texto) {
     if (isNaN(valor) || valor < 50 || valor > 50000) continue;
 
     const rawMatch = m[0] || "";
-
-    const contextoAntes = ttt.slice(Math.max(0, m.index - 20), m.index).toLowerCase();
-    const contextoDepois = ttt.slice(m.index + rawMatch.length, Math.min(ttt.length, m.index + rawMatch.length + 20)).toLowerCase();
-    const contexto = `${contextoAntes} ${contextoDepois}`;
-
-    // evita bateria e porcentagem
-    if (/bateria|saude|saúde|🔋|%/.test(contexto)) continue;
-
     const hasCurrency =
-      /r\$|\$/.test(rawMatch) || /r\$|\$/.test(ttt.slice(Math.max(0, m.index - 5), m.index + rawMatch.length + 5));
-
+      /r\$|\$/.test(rawMatch) || /r\$|\$/.test(t.slice(Math.max(0, m.index - 5), m.index + rawMatch.length + 5));
     const hasDecimal = !!m[2];
     const hasThousands = inteiroRaw.includes(".");
+
+    const contextoNum = tt
+      .slice(Math.max(0, m.index - 10), Math.min(tt.length, m.index + rawMatch.length + 10))
+      .toLowerCase();
 
     const temContextoDePreco =
       hasCurrency ||
       hasDecimal ||
       hasThousands ||
-      /\b(r\$|pix|reais|por|preco|preço|valor|\$|avista|à vista)\b/.test(contexto);
+      /\b(r\$|pix|reais|por|preco|preço|valor|\$)\b/.test(contextoNum);
 
-    if (!temContextoDePreco && !contextoProduto) continue;
     if (!temContextoDePreco && valor < 1000) continue;
 
+    if (/\b(partybox|jbl|fr|s\d{1,2}|iphone|ipad|macbook)\b/i.test(contextoNum) && valor < 1000) {
+      continue;
+    }
+
     const isYear = Number.isInteger(valor) && valor >= 1900 && valor <= 2099;
-    if (isYear && !hasCurrency && !hasDecimal && !hasThousands) continue;
 
-    // sem contexto real, não aceita número solto
-    if (!contextoProduto && !contextoPreco) continue;
+    if (isYear && !hasCurrency && !hasDecimal && !hasThousands) {
+      const contextoAno = t
+        .slice(Math.max(0, m.index - 12), Math.min(t.length, m.index + rawMatch.length + 12))
+        .toLowerCase();
 
-    valores.push(valor);
-    
+      if (/\b(de|ano|modelo|m)\b/.test(contextoAno)) continue;
+      continue;
+    }
+
+    valores.push({ valor, idx: m.index });
   }
 
   if (!valores.length) return null;
 
-  return Math.max(...valores);
+  const reParcela =
+    /\b(\d{1,2})\s*x\s*(?:de\s*)?(?:r\$|\$)?\s*(\d{1,3}(?:\.\d{3})+|\d{3,5})(?:,(\d{2}))?\b/gi;
+
+  const parcelas = new Set();
+  let pm;
+  while ((pm = reParcela.exec(tt)) !== null) {
+    const inteiro = pm[2].replace(/\./g, "");
+    const decimal = pm[3] || "00";
+    const v = parseFloat(`${inteiro}.${decimal}`);
+    if (!isNaN(v) && v >= 50 && v <= 50000) parcelas.add(v);
+  }
+
+  const temValorGrande = valores.some((x) => x.valor >= 1500);
+  const filtrados = temValorGrande ? valores.filter((x) => !(parcelas.has(x.valor) && x.valor < 1200)) : valores;
+  const final = filtrados.length ? filtrados : valores;
+
+  return final.reduce((max, x) => (x.valor > max ? x.valor : max), 0);
 }
 
 function extrairCoresDisponiveis(texto) {
@@ -2339,11 +2178,10 @@ if ((contextoProduto === "Acessório") && !extrairPreco(linha)) {
     buffer.push(linha);
 
     const bloco = buffer.join(" ");
-   const preco = extrairPreco(bloco);
+    const preco = extrairPreco(bloco);
 
-if (!preco) continue;
-if (preco < 500 && /\biphone\b|\b(11|12|13|14|15|16|17)\b/i.test(bloco)) continue;
-if (precoPareceArmazenamento(bloco, preco)) continue;
+    if (!preco) continue;
+    if (precoPareceArmazenamento(bloco, preco)) continue;
 
     let detectado = detectarProduto(bloco);
 
@@ -2977,8 +2815,8 @@ if (!preco) {
   return;
 }
 
-if (["iPhone", "iPad", "MacBook", "Apple Watch"].includes(produto) && preco < 500 && !ehListaDeTelas(texto)) {
-  console.log("ℹ️ Ignorado: preço muito baixo para esse produto (provável ruído).");
+if (produto === "iPhone" && preco < 500 && !ehListaDeTelas(texto)) {
+  console.log("ℹ️ Ignorado: iPhone com preço muito baixo (provável ruído).");
   return;
 }
 
