@@ -1131,7 +1131,7 @@ function extrairPrecoDaLinhaComMoeda(texto) {
   for (const linha of linhas) {
     if (!/(💰|r\$|\$)/i.test(linha)) continue;
 
-    const m = linha.match(/(?:💰|r\$|\$)\s*([\d.,]{2,20})/i);
+    const m = linha.match(/(?:💰|r\$|\$)\s*[:\-]?\s*([\d.,]{2,20})/i);
     if (m) {
       const valor = normalizarNumeroPreco(m[1]);
       if (valor !== null) {
@@ -2327,7 +2327,25 @@ function extrairItensDeLista(texto) {
   }
 
   for (let i = 0; i < linhas.length; i++) {
-    const linha = linhas[i];
+  const linha = linhas[i];
+
+  const linhaPareceOutroProduto =
+    /\b(ps4|ps5|playstation|xbox|nintendo|switch)\b/i.test(linha) ||
+    /\b(apple watch|watch|ultra|series|se)\b/i.test(linha) ||
+    /\bs\d{1,2}\b/i.test(linha) ||
+    /\b(3[8-9]|4[0-9])\s*m(?:\s*m)?\b/i.test(linha) ||
+    /\b(garmin|amazfit|huawei)\b/i.test(linha);
+
+  if (linhaPareceOutroProduto) {
+    ultimoItemBase = null;
+    buffer = [];
+  }
+
+  if (/^\*?\s*apple\s*\*?$/i.test(linha.trim())) {
+    contextoProduto = "Acessório";
+    buffer = [];
+    continue;
+  }
 
     if (/^\*?\s*apple\s*\*?$/i.test(linha.trim())) {
       contextoProduto = "Acessório";
