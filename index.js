@@ -2337,9 +2337,10 @@ function extrairItensDeLista(texto) {
     /\b(garmin|amazfit|huawei)\b/i.test(linha);
 
   if (linhaPareceOutroProduto) {
-    ultimoItemBase = null;
-    buffer = [];
-  }
+  ultimoItemBase = null;
+  ultimoWatchBase = null;
+  buffer = [];
+}
 
   if (/^\*?\s*apple\s*\*?$/i.test(linha.trim())) {
     contextoProduto = "Acessório";
@@ -2347,11 +2348,6 @@ function extrairItensDeLista(texto) {
     continue;
   }
 
-    if (/^\*?\s*apple\s*\*?$/i.test(linha.trim())) {
-      contextoProduto = "Acessório";
-      buffer = [];
-      continue;
-    }
 
     if (ehRodape(linha)) continue;
 
