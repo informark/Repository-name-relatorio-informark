@@ -1171,6 +1171,12 @@ function extrairPrecoFallbackUltimoNumero(texto) {
     const pareceTelefone = /^\+?\s*\d[\d\s().\-–—]{6,}\d\s*$/.test(linha);
     if (pareceTelefone && soDigitos.length >= 10 && soDigitos.length <= 13) continue;
 
+    // ignora validade / garantia em formato MM/AAAA ou MM/AA
+    if (/\b\d{1,2}\/(19|20)\d{2}\b/.test(linha) || /\b\d{1,2}\/\d{2}\b/.test(linha)) continue;
+
+    // ignora linha de garantia/validade
+    if (/\bgarantia\b|\bvalidade\b/i.test(linha)) continue;
+
     // ignora ano
     if (/^\s*(19|20)\d{2}\s*$/.test(linha)) continue;
 
