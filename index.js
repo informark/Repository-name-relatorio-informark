@@ -1031,7 +1031,7 @@ function inferirCondicaoPorTabelas({
   const ehIpad11 = /\b11\b/.test(modeloTxt);
 
   if (ehIpad11) {
-    if (temBateriaOuSeminovoNoTexto) return null;
+    if (temBateriaOuSeminovoNoTexto(descricao || "")) return null;
     if (p > 2200) return "Novo";
   }
 
