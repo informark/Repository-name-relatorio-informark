@@ -8,7 +8,7 @@ $arquivoRelatorio = Get-ChildItem -Path $origem -Filter "relatorio_menor_preco_*
     Select-Object -First 1
 
 $arquivoPrecos = Join-Path $origem "precos.csv"
-$arquivoPrecoDia = Join-Path $origem "preco_dia.xlsx"
+$arquivoPrecoDia = Join-Path $origem "preco_dia.csv"
 
 function Nova-TabelaHtml {
     param (
@@ -151,7 +151,7 @@ $tabelaPrecoDia = Nova-TabelaHtml -Dados $dadosPrecoDia -IdTabela "tabelaPrecoDi
 $atualizadoEm = Get-Date -Format "dd/MM/yyyy HH:mm:ss"
 $nomeArquivoRelatorio = if ($arquivoRelatorio) { $arquivoRelatorio.Name } else { "Nenhum relatório encontrado" }
 $nomeArquivoPrecos = if (Test-Path $arquivoPrecos) { "precos.csv" } else { "precos.csv não encontrado" }
-$nomeArquivoPrecoDia = if (Test-Path $arquivoPrecoDia) { "preco_dia.xlsx" } else { "preco_dia.xlsx não encontrado" }
+$nomeArquivoPrecoDia = if (Test-Path $arquivoPrecoDia) { "preco_dia.csv" } else { "preco_dia.csv não encontrado" }
 
 $html = @"
 <!DOCTYPE html>
