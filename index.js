@@ -260,6 +260,7 @@ function temDefeitoBloqueante(descricao) {
 
     // defeitos gerais comuns
     /\bnao (liga|carrega)\b/,
+    /\bface\s*id\s*(off|nao funciona|desativado)\b/,
     /\bsem (face\s*id|touch\s*id)\b/,
     /\bsem sinal\b/,
     /\bsem audio\b/,
@@ -274,6 +275,7 @@ function temDefeitoBloqueante(descricao) {
 
     // mensagens “chatas” que geralmente indicam peça/tela/bateria trocada
     /\bmensagem de tela\b/,
+    /\bcom mensagem\b/,
     /\bpeca desconhecida\b/,
     /\bbateria (em manutencao|ruim|viciada)\b/,
   ];
