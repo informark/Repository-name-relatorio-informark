@@ -141,8 +141,9 @@ if (Test-Path $arquivoPrecos) {
 }
 
 if (Test-Path $arquivoPrecoDia) {
-    $dadosPrecoDia = Importar-XlsxComoObjetos -CaminhoArquivo $arquivoPrecoDia
+    $dadosPrecoDia = Import-Csv $arquivoPrecoDia
 }
+
 
 $tabelaRelatorio = Nova-TabelaHtml -Dados $dadosRelatorio -IdTabela "tabelaRelatorio"
 $tabelaPrecos = Nova-TabelaHtml -Dados $dadosPrecos -IdTabela "tabelaPrecos"
