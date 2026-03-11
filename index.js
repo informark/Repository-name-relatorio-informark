@@ -1142,10 +1142,12 @@ function extrairPrecoDaLinhaComMoeda(texto) {
 
   // prioridade total para linhas com 💰, R$, $
   for (let i = linhas.length - 1; i >= 0; i--) {
-  const linha = linhas[i];
+    const linha = linhas[i];
     if (!/(💰|r\$|\$)/i.test(linha)) continue;
 
-    const m = linha.match(/(?:💰|r\$|\$)\s*[:\-]?\s*([\d.,]{2,20})/i);
+    const linhaLimpa = linha.replace(/[*_~]/g, "");
+    const m = linhaLimpa.match(/(?:💰|r\$|\$)\s*[:\-]?\s*([\d.,]{2,20})/i);
+
     if (m) {
       const valor = normalizarNumeroPreco(m[1]);
       if (valor !== null) {
@@ -1262,13 +1264,30 @@ function extrairPrecoFallbackUltimoNumero(texto) {
     if (/\b(fr|forerunner)\s*\d{2,4}\b/i.test(linha) && /\b(garmin)\b/i.test(texto)) continue;
 
     const matches = [...linha.matchAll(/\b(\d{3,5}(?:[.,]\d{2})?|\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\b/g)];
-    if (!matches.length) continue;
+if (!matches.length) continue;
 
-    const ultimo = matches[matches.length - 1][1];
-    const valor = normalizarNumeroPreco(ultimo);
+let valor = null;
+
+for (let j = matches.length - 1; j >= 0; j--) {
+  const match = matches[j];
+  const numeroTexto = match[1];
+  const inicio = match.index ?? 0;
+  const restoDaLinha = linha.slice(inicio);
+
+  // ignora storage/ram tipo 512/12gb, 256/8, 64/3gb
+  if (/^\d{2,4}\s*\/\s*\d{1,2}\s*(gb|g|ram)?/i.test(restoDaLinha)) {
+    continue;
+  }
+
+  const candidato = normalizarNumeroPreco(numeroTexto);
+  if (candidato === null) continue;
+
+  valor = candidato;
+  break;
+}
 
     if (valor === null) continue;
-    if (valor < 500) continue;
+    if (valor < 400) continue;
 
     // 🔒 BLOQUEIO: iPhone 12+ com preço menor que 1000
 const modeloDetectado = extrairModeloIphoneDefinitivo(texto);
@@ -1292,7 +1311,8 @@ if (modeloDetectado) {
   /\b(ar\s*condicionado|split|inverter|convencional|9k|12k|18k)\b/i.test(linha) ||
   /\b(ps4|ps5|playstation|xbox|nintendo|switch|hoverboard|taramps|controle)\b/i.test(linha) ||
   /\bs\d{1,2}\b/i.test(linha) && /\b\d{2,3}\s*mm\b/i.test(linha) ||
-  /\b\d{1,3}\.\d{3},\d{2}\b/.test(linha);
+  /\b\d{1,3}\.\d{3},\d{2}\b/.test(linha) ||
+  /\b\d{3,5},\d{2}\b/.test(linha);
 
     // aceita:
     // - linha com contexto de item
@@ -1956,6 +1976,21 @@ function extrairConfigMacBook(texto) {
       ram = `${m[1]}GB RAM`;
     }
   }
+
+  if (!ram || !ssd) {
+  const mSlash = t.match(/\b(8|16|24|32|64)\s*\/\s*(128|256|512|1)\s*(tb)?\b/i);
+  if (mSlash) {
+    ram = `${mSlash[1]}GB RAM`;
+
+    if (mSlash[2] === "1" && mSlash[3]) {
+      ssd = "1TB SSD";
+    } else if (mSlash[2] === "1" && /\/\s*1tb\b/i.test(t)) {
+      ssd = "1TB SSD";
+    } else {
+      ssd = `${mSlash[2]}GB SSD`;
+    }
+  }
+}
 
   if (!ssd) {
     m = t.match(/\b(128|256|512|1024)\s*(gb)?\s*(ssd)\b/i);
@@ -2648,9 +2683,8 @@ function extrairItensDeLista(texto) {
     if (!p) return false;
 
     const temCor =
-      /\b(azul|blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight)\b/i.test(
-        x
-      );
+      /\b(azul|blue|sky|sky blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight|laranja|orange)\b/i
+      .test(x);
 
     if (!temCor) return false;
 
@@ -2709,8 +2743,12 @@ function extrairItensDeLista(texto) {
     const temGB = /\b(64|128|256|512)\s*(gb|gigas|g)\b/i.test(t) || /\b(64|128|256|512)\b/i.test(t);
 
     const temSinalPreco =
-      /r\$\s*/i.test(bloco) || /\$\s*/.test(bloco) || /,\d{2}\b/.test(bloco) || /\b\d{1,3}\.\d{3}\b/.test(bloco);
-
+  /💰/.test(bloco) ||
+  /r\$/i.test(bloco) ||
+  /\$\s*\d/.test(bloco) ||
+  /\d+,\d{2}/.test(bloco) ||
+  /\d+\.\d{3}/.test(bloco);
+  
     return temGB && !temSinalPreco && preco <= 512;
   }
 
@@ -2771,6 +2809,17 @@ function extrairItensDeLista(texto) {
 
   for (let i = 0; i < linhas.length; i++) {
   const linha = linhas[i];
+
+  const linhaTrim = (linha || "").trim();
+const linhaSoSeparador = linhaTrim.length > 0 &&
+  /^[\s_\-–—=.\u2022•🔹🔸▪️▫️➖➖➖🖤🤍💙💚💛🧡💜❤️]+$/.test(linhaTrim);
+
+if (linhaSoSeparador) {
+  buffer = [];
+  ultimoItemBase = null;
+  ultimoWatchBase = null;
+  continue;
+}
 
   if (ehTituloDeSecaoGenerica(linha)) {
   buffer = [];
@@ -2900,15 +2949,17 @@ if (!extrairPreco(linha) && !ehLinhaProduto && /\b(lacrados?|novo(s)?|zero|selad
       continue;
     }
 
-    const baseIphoneCompleta =
-      ultimoItemBase &&
-      ultimoItemBase.produto === "iPhone" &&
-      ultimoItemBase.modelo &&
-      ultimoItemBase.modelo !== "Não informado" &&
-      ultimoItemBase.armazenamento &&
-      ultimoItemBase.armazenamento !== "";
+    const baseAppleCompleta =
+  ultimoItemBase &&
+  ["iPhone", "iPad", "MacBook", "AirPods"].includes(ultimoItemBase.produto) &&
+  ultimoItemBase.modelo &&
+  ultimoItemBase.modelo !== "Não informado" &&
+  (
+    ultimoItemBase.produto === "AirPods" ||
+    (ultimoItemBase.armazenamento && ultimoItemBase.armazenamento !== "")
+  );
 
-    if (baseIphoneCompleta && buffer.length === 0 && ehLinhaVariacaoCorPreco(linha)) {
+    if (baseAppleCompleta && buffer.length === 0 && ehLinhaVariacaoCorPreco(linha)) {
       const precoLinha = extrairPrecoLinhaVariacao(linha);
 
       itens.push({
@@ -2930,7 +2981,11 @@ if (!extrairPreco(linha) && !ehLinhaProduto && /\b(lacrados?|novo(s)?|zero|selad
     const baseWatchCompleta =
       ultimoWatchBase && ultimoWatchBase.produto === "Apple Watch" && ultimoWatchBase.modelo && ultimoWatchBase.modelo !== "Apple Watch (modelo não informado)";
 
-    if (baseWatchCompleta && buffer.length === 0 && /^\s*\(/.test(linha)) {
+    if (
+  baseWatchCompleta &&
+  buffer.length === 0 &&
+  (/^\s*\(/.test(linha) || ehLinhaVariacaoCorPreco(linha))
+) {
       const precoLinha = extrairPrecoLinhaVariacao(linha);
       if (precoLinha) {
         itens.push({
@@ -2945,7 +3000,7 @@ if (!extrairPreco(linha) && !ehLinhaProduto && /\b(lacrados?|novo(s)?|zero|selad
       }
     }
 
-    if (baseIphoneCompleta && buffer.length === 0) {
+    if (baseAppleCompleta && buffer.length === 0) {
   const precoLinha = extrairPrecoLinhaVariacao(linha);
 
   if (precoLinha) {
@@ -2992,11 +3047,12 @@ if (/\d+\s*UND\b/i.test(linha)) {
 
 if (
   ultimoItemBase &&
+  ["iPhone", "iPad", "MacBook", "AirPods"].includes(ultimoItemBase.produto) &&
   buffer.length >= 0 &&
   buffer.length <= 2
 ) {
   const bufferJunto = [...buffer, linha].join(" ");
-  const temCorBuf = /\b(azul|blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight|lilás|lilas)\b/i.test(bufferJunto);
+  const temCorBuf = /\b(azul|blue|sky|sky blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight|lilás|lilas|laranja|orange)\b/i.test(bufferJunto);
   const temPrecoBuf = /(💰|r\$|\$)\s*[:\-]?\s*[\d.,]/i.test(bufferJunto);
   const semProduto = !/\b(iphone|ipad|macbook|airpods|watch|apple\s*watch|garmin|jbl|samsung|xiaomi|motorola|realme|poco|ps[45]|playstation|xbox|nintendo|switch|console|notebook|tv)\b/i.test(bufferJunto);
   const semModeloNum = !/\b(1[0-7]|se)\s*(pro|max|plus|mini|air)?\s*(64|128|256|512)\s*g/i.test(bufferJunto);
@@ -3009,7 +3065,7 @@ if (
   if (temCorBuf && temPrecoBuf && semProduto && semModeloNum && !temSufixoDiferente) {
     const precoVar = extrairPrecoDaLinhaComMoeda(bufferJunto) || extrairPrecoLinhaVariacao(bufferJunto);
     if (precoVar) {
-      const corVar = bufferJunto.match(/\b(azul|blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight|lilás|lilas)\b/i);
+      /\b(azul|blue|sky|sky blue|preto|black|branco|white|prata|silver|cinza|gray|grafite|graphite|gold|dourado|verde|green|roxo|purple|vermelho|red|rosa|pink|natural|desert|titanium|titanio|tit[aâ]nio|starlight|midnight|lilás|lilas|laranja|orange)\b/i
       itens.push({
         produto: ultimoItemBase.produto,
         modelo: ultimoItemBase.modelo,
@@ -3025,6 +3081,7 @@ if (
   }
 }
 
+if (!linha || !linha.trim()) continue;
 buffer.push(linha);
 
 const bloco = buffer.join(" | ");
