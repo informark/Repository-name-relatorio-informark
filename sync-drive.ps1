@@ -5,7 +5,8 @@ New-Item -ItemType Directory -Force -Path $destino | Out-Null
 
 $arquivosFixos = @(
     "precos.csv",
-    "promocoes_enviadas.csv"
+    "promocoes_enviadas.csv",
+    "preco_dia.xlsx"
 )
 
 foreach ($arquivo in $arquivosFixos) {
@@ -15,6 +16,9 @@ foreach ($arquivo in $arquivosFixos) {
     if (Test-Path $src) {
         Copy-Item $src $dst -Force
         Write-Host "Copiado: $arquivo"
+    }
+    else {
+        Write-Host "Nao encontrado: $arquivo"
     }
 }
 
