@@ -1058,18 +1058,18 @@ function inferirCondicaoPorTabelas({
     return "Seminovo";
   }
 
-  if (maxNovo != null && !textoPuxaSemi) {
-    if (maxSemi == null) {
+    if (!textoPuxaSemi) {
+    // Se tem maxSemi: Novo quando preço >= maxSemi + 200
+    if (maxSemi != null && p >= Number(maxSemi) + GAP_NOVO) {
+      return "Novo";
+    }
+
+    // Se só tem maxNovo (sem maxSemi): Novo quando preço >= maxNovo - 500
+    if (maxNovo != null && maxSemi == null) {
       const minNovoSemSemi = Number(maxNovo) - FOLGA_NOVO_SEM_SEMI;
       if (p >= minNovoSemSemi) {
         return "Novo";
       }
-      return null;
-    }
-
-    const minNovo = Number(maxSemi) + GAP_NOVO;
-    if (p >= minNovo) {
-      return "Novo";
     }
   }
 
