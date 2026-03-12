@@ -1259,6 +1259,13 @@ function normalizarNumeroPreco(bruto) {
     .replace(/\$/g, "")
     .replace(/\s+/g, "");
 
+      // corrige formato malformado tipo "8.1.000,00" → 8100 (deveria ser "8.100,00")
+  const mMal = s.match(/^(\d+)\.(\d{1,2})\.(\d{3}),(\d{2})$/);
+  if (mMal) {
+    const corrigido = parseFloat(mMal[1] + "." + mMal[2]) * 1000 + parseInt(mMal[4]) / 100;
+    if (!isNaN(corrigido) && corrigido >= 50 && corrigido <= 50000) return corrigido;
+  }
+
   // caso BR: 5.150,00
   if (s.includes(",") && s.includes(".")) {
     s = s.replace(/\./g, "").replace(",", ".");
