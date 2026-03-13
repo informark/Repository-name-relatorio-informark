@@ -2325,11 +2325,12 @@ function detectarCondicaoPorProduto(texto, produto) {
   // ✅ 2) depois sim "NOVO" + lacrado/selado/zerado
   const reNovo =
     /\b(novo+s?|nova+s?|lacrad[oa]o*s?|selad[oa]s?|zerad[oa]s?|zero+s?|lacrad(?:inho|inha|xinha)?s?)\b/i;
+
+  if (extrairBateria(texto) !== null) return "Seminovo";
+
   if (reNovo.test(t)) return "Novo";
 
   const prod = (produto || "").toLowerCase();
-
-  if (extrairBateria(texto) !== null) return "Seminovo";
 
   if (
     /\b(arranhad[oa]?|arranhao|marquinha|marca\s*de\s*uso|detalhe|trincad[oa]|quebrad[oa]|amassad[oa]|mancha)\b/i.test(
