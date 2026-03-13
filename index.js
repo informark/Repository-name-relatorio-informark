@@ -1041,6 +1041,24 @@ function inferirCondicaoPorTabelas({
 
     return null;
   }
+
+    // Apple Watch Ultra 3: preço > 4500 = Novo
+  if (produto === "Apple Watch") {
+    const modeloTxt = (modelo || "").toString().toLowerCase();
+    const p = Number(preco);
+
+    if (!Number.isFinite(p)) return null;
+
+    const ehUltra3 = /ultra\s*3/i.test(modeloTxt);
+
+    if (ehUltra3) {
+      if (temBateriaOuSeminovoNoTexto(descricao || "")) return null;
+      if (p > 4500) return "Novo";
+    }
+
+    return null;
+  }
+  
   if (produto !== "iPhone") return null;
 
   const p = Number(preco);
