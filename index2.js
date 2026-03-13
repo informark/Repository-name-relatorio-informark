@@ -460,19 +460,6 @@ function horaRecebidaMsg(msg) {
   });
 }
 
-function dentroDoHorarioDeEnvio() {
-  const agora = new Date();
-  const partes = new Intl.DateTimeFormat("pt-BR", {
-    hour: "2-digit", minute: "2-digit", hour12: false,
-    timeZone: "America/Fortaleza",
-  }).formatToParts(agora);
-  const h = parseInt(partes.find(p => p.type === "hour").value);
-  const m = parseInt(partes.find(p => p.type === "minute").value);
-  const minutos = h * 60 + m;
-  // Permite envio das 07:50 até 21:59
-  return minutos >= 7 * 60 + 50 && minutos < 22 * 60;
-}
-
 async function enviarParaGrupoPromo(
   grupoDestino,
   mensagemPromo,
@@ -1071,7 +1058,7 @@ function inferirCondicaoPorTabelas({
 
     return null;
   }
-
+  
   if (produto !== "iPhone") return null;
 
   const p = Number(preco);
@@ -4195,66 +4182,6 @@ client.on("ready", async () => {
   verificarResetNaInicializacao();
   setInterval(verificarResetDiario, 60 * 1000);
 
-  const FRASES_BOM_DIA = [
-    "Quem acredita sempre alcança. Bora vender! 💪",
-    "Cada cliente atendido é uma vitória. Foco total hoje! 🎯",
-    "Energia boa atrai negócio bom. Bora! 🚀",
-    "O sucesso é a soma de pequenos esforços repetidos todo dia. 💰",
-    "Hoje é mais um dia de conquistas. Vamos com tudo! 🔥",
-    "Atitude positiva, resultado positivo. Bora vender! 😎",
-    "Seu esforço de hoje é o seu lucro de amanhã. 💸",
-    "Foco, força e fé. O dia é nosso! 🙏",
-    "Quem não desiste vence. Bora! 🏆",
-    "Cada mensagem respondida é uma oportunidade. Não perca nenhuma! 📲",
-    "Vendedor que acredita no produto vende mais. Acredite! ✅",
-    "O dia começou, as oportunidades também. Aproveite! 🌅",
-    "Persistência transforma sonhos em resultados. Bora! 💡",
-    "Seu melhor negócio do dia ainda está por vir. Fique ligado! 👀",
-    "Motivação é o que te faz começar. Hábito é o que te faz continuar. 🔁",
-    "Grandes vendas começam com grandes atitudes. 🫱🏼‍🫲🏾",
-    "O cliente certo está esperando por você. Bora encontrá-lo! 🎯",
-    "Quem é rápido fecha primeiro. Agilidade é tudo! ⚡",
-    "Sorrir, atender bem e vender mais. Simples assim! 😊",
-    "Hoje é dia de superar a meta de ontem. Bora! 📈",
-    "Um bom atendimento vale mais que qualquer desconto. 🤝",
-    "Cada não te aproxima de um sim. Não desista! 💬",
-    "Disciplina hoje, resultado amanhã. Vamos! 🗓",
-    "Quem está no jogo não pode ficar de fora. Bora, time! 🏅",
-    "Oportunidades aparecem para quem está pronto. Esteja! ✨",
-    "Venda com confiança, entregue com qualidade. 🌟",
-    "Sua dedicação inspira o time. Bora com tudo! 🔝",
-    "O mercado está aquecido. Aproveite cada lead! 🔥",
-    "Bom dia é só o começo. O resto depende de você! 💼",
-    "Mais um dia, mais uma chance de fazer bonito! 🎉",
-  ];
-
-  let bomDiaEnviadoHoje = "";
-
-  setInterval(async () => {
-    const hoje = hojeISO_BR();
-    if (bomDiaEnviadoHoje === hoje) return;
-
-    const agora = new Date();
-    const partes = new Intl.DateTimeFormat("pt-BR", {
-      hour: "2-digit", minute: "2-digit", hour12: false,
-      timeZone: "America/Fortaleza",
-    }).formatToParts(agora);
-    const h = parseInt(partes.find(p => p.type === "hour").value);
-    const m = parseInt(partes.find(p => p.type === "minute").value);
-
-    if (h !== 7 || m !== 50) return;
-
-    if (!grupoPromoRef) return;
-
-    const diaDoAno = Math.floor((agora - new Date(agora.getFullYear(), 0, 0)) / 86400000);
-    const frase = FRASES_BOM_DIA[diaDoAno % FRASES_BOM_DIA.length];
-
-    const msg = `🌅 *Bom dia, time!*\n\n_${frase}_`;
-    await grupoPromoRef.sendMessage(msg);
-    bomDiaEnviadoHoje = hoje;
-    console.log("☀️ Bom dia enviado ao grupo promo:", frase);
-  }, 60 * 1000);
-
   if (!relatorioJaGeradoHoje()) {
     gerarRelatorioMenorPrecoDoDia();
     marcarRelatorioGeradoHoje();
@@ -4427,18 +4354,6 @@ client.on("message", async (msg) => {
               }
             }
 
-            // ✅ Regra Apple Watch Ultra 3: só envia se preço <= R$5200
-            if (item.produto === "Apple Watch" && /ultra\s*3/i.test(item.modelo) && novoPreco > 5200) {
-              console.log("⛔ Apple Watch Ultra 3 ignorado: preço acima de R$5200:", novoPreco);
-              continue;
-            }
-
-            // ✅ Regra JBL BOOMBOX 3: só envia se preço <= R$1750
-            if (item.produto === "JBL" && /boombox\s*3/i.test(item.modelo) && novoPreco > 1750) {
-              console.log("⛔ JBL BOOMBOX 3 ignorado: preço acima de R$1750:", novoPreco);
-              continue;
-            }
-
             // ✅ bateria só para iPhone
             const bateriaItem =
               item.produto === "iPhone"
@@ -4575,11 +4490,6 @@ client.on("message", async (msg) => {
             }
 
             marcarEnviado(chave);
-
-            if (!dentroDoHorarioDeEnvio()) {
-              console.log("🌙 Fora do horário de envio. Promo não enviada.");
-              continue;
-            }
 
             try {
               await enviarParaGrupoPromo(grupoPromoRef, mensagemPromo, msg, {
@@ -4783,18 +4693,6 @@ client.on("message", async (msg) => {
           }
         }
 
-        // ✅ Regra Apple Watch Ultra 3: só envia se preço <= R$5200
-        if (produto === "Apple Watch" && /ultra\s*3/i.test(modeloLimpo) && novoPreco > 5200) {
-          console.log("⛔ Apple Watch Ultra 3 ignorado: preço acima de R$5200:", novoPreco);
-          return;
-        }
-
-        // ✅ Regra JBL BOOMBOX 3: só envia se preço <= R$1750
-        if (produto === "JBL" && /boombox\s*3/i.test(modeloLimpo) && novoPreco > 1750) {
-          console.log("⛔ JBL BOOMBOX 3 ignorado: preço acima de R$1750:", novoPreco);
-          return;
-        }
-
         // ✅ bateria só para iPhone
         const bateriaItem = produto === "iPhone" ? extrairBateria(texto) : null;
 
@@ -4913,11 +4811,6 @@ client.on("message", async (msg) => {
         }
 
         marcarEnviado(chave);
-
-        if (!dentroDoHorarioDeEnvio()) {
-          console.log("🌙 Fora do horário de envio. Promo não enviada.");
-          return;
-        }
 
         if (grupoDestino) {
           try {
