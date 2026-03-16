@@ -1885,7 +1885,7 @@ function formatarCor(c) {
 }
 
 function ehMarcaConcorrente(texto) {
-  return /(samsung|galaxy|xiaomi|redmi|lenovo|motorola|moto|realme|poco)/i.test(
+  return /(samsung|galaxy|xiaomi|redmi|lenovo|motorola|moto|realm|realme|poco)/i.test(
     texto,
   );
 }
@@ -2529,7 +2529,7 @@ function detectarProduto(texto) {
     !/\b(galaxy|samsung|iphone|ipad)\b/i.test(t)
   )
     return "Motorola";
-  if (/(realme)\b/i.test(t)) return "Realme";
+  if (/(realm[e]?)\b/i.test(t)) return "Realme";
   if (/\binfinix\b/i.test(t)) return "Infinix";
   if (
     /\btecno\b/i.test(t) ||
