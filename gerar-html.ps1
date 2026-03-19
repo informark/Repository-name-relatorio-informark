@@ -3,12 +3,11 @@ $docs = Join-Path $origem "docs"
 
 New-Item -ItemType Directory -Force -Path $docs | Out-Null
 
-$arquivoRelatorio = Get-ChildItem -Path $origem -Filter "relatorio_menor_preco_*.csv" -ErrorAction SilentlyContinue |
+$arquivoRelatorio = Get-ChildItem -Path $origem -Filter "relatorio_menor_preco_*.csv" |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 
 $arquivoPrecos = Join-Path $origem "precos.csv"
-$arquivoPrecoDia = Join-Path $origem "preco_dia.csv"
 
 function Nova-TabelaHtml {
     param (
@@ -28,8 +27,17 @@ function Nova-TabelaHtml {
         $thead += "<th>$colEscapado</th>`n"
     }
 
-    $json = $Dados | ConvertTo-Json -Depth 5 -Compress
-    $jsonSeguro = $json -replace '</script>', '<\/script>'
+    $tbody = ""
+    foreach ($linha in $Dados) {
+        $tbody += "<tr>`n"
+        foreach ($col in $colunas) {
+            $valor = $linha.$col
+            if ($null -eq $valor) { $valor = "" }
+            $valorEscapado = [System.Net.WebUtility]::HtmlEncode([string]$valor)
+            $tbody += "<td>$valorEscapado</td>`n"
+        }
+        $tbody += "</tr>`n"
+    }
 
     return @"
 <div class="table-wrap">
@@ -39,91 +47,16 @@ function Nova-TabelaHtml {
 $thead
             </tr>
         </thead>
-        <tbody></tbody>
+        <tbody>
+$tbody
+        </tbody>
     </table>
 </div>
-<div class="paginacao" id="${IdTabela}_paginacao"></div>
-<script type="application/json" id="${IdTabela}_data">$jsonSeguro</script>
 "@
-}
-
-function Importar-XlsxComoObjetos {
-    param (
-        [string]$CaminhoArquivo
-    )
-
-    $resultado = @()
-
-    if (-not (Test-Path $CaminhoArquivo)) {
-        return $resultado
-    }
-
-    $excel = $null
-    $workbook = $null
-    $worksheet = $null
-    $usedRange = $null
-
-    try {
-        $excel = New-Object -ComObject Excel.Application
-        $excel.Visible = $false
-        $excel.DisplayAlerts = $false
-
-        $workbook = $excel.Workbooks.Open($CaminhoArquivo)
-        $worksheet = $workbook.Worksheets.Item(1)
-        $usedRange = $worksheet.UsedRange
-
-        $rowCount = $usedRange.Rows.Count
-        $colCount = $usedRange.Columns.Count
-
-        if ($rowCount -lt 2 -or $colCount -lt 1) {
-            return @()
-        }
-
-        $headers = @()
-        for ($col = 1; $col -le $colCount; $col++) {
-            $headerText = [string]$usedRange.Cells.Item(1, $col).Text
-            if ([string]::IsNullOrWhiteSpace($headerText)) {
-                $headerText = "Coluna$col"
-            }
-            $headers += $headerText.Trim()
-        }
-
-        for ($row = 2; $row -le $rowCount; $row++) {
-            $obj = [ordered]@{}
-            $temConteudo = $false
-
-            for ($col = 1; $col -le $colCount; $col++) {
-                $valor = [string]$usedRange.Cells.Item($row, $col).Text
-                if (-not [string]::IsNullOrWhiteSpace($valor)) {
-                    $temConteudo = $true
-                }
-                $obj[$headers[$col - 1]] = $valor
-            }
-
-            if ($temConteudo) {
-                $resultado += [PSCustomObject]$obj
-            }
-        }
-    }
-    finally {
-        if ($workbook) { $workbook.Close($false) | Out-Null }
-        if ($excel) { $excel.Quit() | Out-Null }
-
-        if ($usedRange) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($usedRange) }
-        if ($worksheet) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($worksheet) }
-        if ($workbook) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) }
-        if ($excel) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) }
-
-        [GC]::Collect()
-        [GC]::WaitForPendingFinalizers()
-    }
-
-    return $resultado
 }
 
 $dadosRelatorio = @()
 $dadosPrecos = @()
-$dadosPrecoDia = @()
 
 if ($arquivoRelatorio) {
     $dadosRelatorio = Import-Csv $arquivoRelatorio.FullName
@@ -133,18 +66,12 @@ if (Test-Path $arquivoPrecos) {
     $dadosPrecos = Import-Csv $arquivoPrecos
 }
 
-if (Test-Path $arquivoPrecoDia) {
-    $dadosPrecoDia = Import-Csv $arquivoPrecoDia
-}
-
 $tabelaRelatorio = Nova-TabelaHtml -Dados $dadosRelatorio -IdTabela "tabelaRelatorio"
 $tabelaPrecos = Nova-TabelaHtml -Dados $dadosPrecos -IdTabela "tabelaPrecos"
-$tabelaPrecoDia = Nova-TabelaHtml -Dados $dadosPrecoDia -IdTabela "tabelaPrecoDia"
 
 $atualizadoEm = Get-Date -Format "dd/MM/yyyy HH:mm:ss"
 $nomeArquivoRelatorio = if ($arquivoRelatorio) { $arquivoRelatorio.Name } else { "Nenhum relatório encontrado" }
 $nomeArquivoPrecos = if (Test-Path $arquivoPrecos) { "precos.csv" } else { "precos.csv não encontrado" }
-$nomeArquivoPrecoDia = if (Test-Path $arquivoPrecoDia) { "preco_dia.csv" } else { "preco_dia.csv não encontrado" }
 
 $html = @"
 <!DOCTYPE html>
@@ -333,35 +260,6 @@ $html = @"
             background: #f8fafc;
         }
 
-        .paginacao {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-            margin-top: 14px;
-        }
-
-        .paginacao button {
-            border: none;
-            background: #0f172a;
-            color: white;
-            padding: 10px 14px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .paginacao button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .paginacao .info-pagina {
-            font-size: 14px;
-            color: #4b5563;
-            font-weight: 600;
-        }
-
         @media (max-width: 1200px) {
             .stats {
                 grid-template-columns: repeat(3, minmax(140px, 1fr));
@@ -440,7 +338,6 @@ $html = @"
             <div class="tabs">
                 <button class="tab-btn active" onclick="abrirAba('abaRelatorio', this, 'Menor Preço')">Menor Pre&ccedil;o</button>
                 <button class="tab-btn" onclick="abrirAba('abaPrecos', this, 'Planilha de Preços')">Planilha de Pre&ccedil;os</button>
-                <button class="tab-btn" onclick="abrirAba('abaPrecoDia', this, 'Preco do dia')">Preco do dia</button>
             </div>
 
             <div id="abaRelatorio" class="tab-content active">
@@ -486,28 +383,6 @@ $html = @"
                 <div class="resumo" id="resumoPrecos"></div>
                 $tabelaPrecos
             </div>
-
-            <div id="abaPrecoDia" class="tab-content">
-                <div class="subtitulo">Arquivo base: $nomeArquivoPrecoDia</div>
-
-                <div class="filtros">
-                    <input type="text" id="buscaPrecoDia" placeholder="Buscar na planilha preco do dia...">
-                    <select id="produtoPrecoDia"><option value="">Todos os produtos</option></select>
-                    <select id="modeloPrecoDia"><option value="">Todos os modelos</option></select>
-                    <select id="gbPrecoDia"><option value="">Todos os GB</option></select>
-                    <select id="condicaoPrecoDia"><option value="">Todas as condi&ccedil;&otilde;es</option></select>
-                    <input type="number" id="precoMinPrecoDia" placeholder="Pre&ccedil;o m&iacute;nimo">
-                    <input type="number" id="precoMaxPrecoDia" placeholder="Pre&ccedil;o m&aacute;ximo">
-                    <select id="ordenacaoPrecoDia">
-                        <option value="">Ordena&ccedil;&atilde;o padr&atilde;o</option>
-                        <option value="preco-asc">Pre&ccedil;o: menor para maior</option>
-                        <option value="preco-desc">Pre&ccedil;o: maior para menor</option>
-                    </select>
-                </div>
-
-                <div class="resumo" id="resumoPrecoDia"></div>
-                $tabelaPrecoDia
-            </div>
         </section>
     </div>
 
@@ -526,10 +401,8 @@ $html = @"
 
             if (nomeAba === 'Menor Preço') {
                 document.getElementById('statAba').innerHTML = 'Menor Pre&ccedil;o';
-            } else if (nomeAba === 'Planilha de Preços') {
-                document.getElementById('statAba').innerHTML = 'Planilha de Pre&ccedil;os';
             } else {
-                document.getElementById('statAba').innerHTML = 'Preco do dia';
+                document.getElementById('statAba').innerHTML = 'Planilha de Pre&ccedil;os';
             }
 
             atualizarStatsGerais();
@@ -645,41 +518,28 @@ $html = @"
             const precoMaxInput = document.getElementById(config.precoMaxId);
             const ordenacaoSelect = document.getElementById(config.ordenacaoId);
             const resumo = document.getElementById(config.resumoId);
-            const paginacao = document.getElementById(config.tabelaId + '_paginacao');
 
             const indices = detectarIndices(config.tabelaId);
-            const jsonNode = document.getElementById(config.tabelaId + '_data');
-            const dados = jsonNode ? JSON.parse(jsonNode.textContent) : [];
 
-            let filtrados = [...dados];
-            let paginaAtual = 1;
-            const pageSize = 50;
-
-            const colunas = dados.length ? Object.keys(dados[0]) : [];
-
-            function valorCampo(item, idx) {
-                if (idx < 0 || idx >= colunas.length) return '';
-                const chave = colunas[idx];
-                const valor = item[chave];
-                return (valor ?? '').toString().trim();
+            function obterLinhas() {
+                return Array.from(tbody.querySelectorAll('tr'));
             }
 
             function popularFiltros() {
+                const linhas = obterLinhas();
+
                 const produtos = new Set();
                 const modelos = new Set();
                 const gbs = new Set();
                 const condicoes = new Set();
 
-                dados.forEach(item => {
-                    const produto = valorCampo(item, indices.produto);
-                    const modelo = valorCampo(item, indices.modelo);
-                    const gb = valorCampo(item, indices.gb);
-                    const condicao = valorCampo(item, indices.condicao);
+                linhas.forEach(linha => {
+                    const tds = linha.querySelectorAll('td');
 
-                    if (produto) produtos.add(produto);
-                    if (modelo) modelos.add(modelo);
-                    if (gb) gbs.add(gb);
-                    if (condicao) condicoes.add(condicao);
+                    if (indices.produto >= 0 && tds[indices.produto]) produtos.add(tds[indices.produto].innerText.trim());
+                    if (indices.modelo >= 0 && tds[indices.modelo]) modelos.add(tds[indices.modelo].innerText.trim());
+                    if (indices.gb >= 0 && tds[indices.gb]) gbs.add(tds[indices.gb].innerText.trim());
+                    if (indices.condicao >= 0 && tds[indices.condicao]) condicoes.add(tds[indices.condicao].innerText.trim());
                 });
 
                 preencherSelectComValores(config.produtoId, Array.from(produtos));
@@ -688,13 +548,16 @@ $html = @"
                 preencherSelectComValores(config.condicaoId, Array.from(condicoes));
             }
 
-            function ordenarDados(lista) {
+            function ordenarLinhas(linhas) {
                 const tipoOrdenacao = ordenacaoSelect?.value || '';
-                if (!tipoOrdenacao || indices.preco < 0) return lista;
+                if (!tipoOrdenacao || indices.preco < 0) return linhas;
 
-                return [...lista].sort((a, b) => {
-                    const aPreco = extrairNumeroPreco(valorCampo(a, indices.preco));
-                    const bPreco = extrairNumeroPreco(valorCampo(b, indices.preco));
+                return linhas.sort((a, b) => {
+                    const aTds = a.querySelectorAll('td');
+                    const bTds = b.querySelectorAll('td');
+
+                    const aPreco = aTds[indices.preco] ? extrairNumeroPreco(aTds[indices.preco].innerText) : NaN;
+                    const bPreco = bTds[indices.preco] ? extrairNumeroPreco(bTds[indices.preco].innerText) : NaN;
 
                     const av = isNaN(aPreco) ? 0 : aPreco;
                     const bv = isNaN(bPreco) ? 0 : bPreco;
@@ -705,66 +568,9 @@ $html = @"
                 });
             }
 
-            function renderTabela() {
-                tbody.innerHTML = '';
-
-                const inicio = (paginaAtual - 1) * pageSize;
-                const fim = inicio + pageSize;
-                const pagina = filtrados.slice(inicio, fim);
-
-                const fragment = document.createDocumentFragment();
-
-                pagina.forEach(item => {
-                    const tr = document.createElement('tr');
-
-                    colunas.forEach(col => {
-                        const td = document.createElement('td');
-                        td.textContent = (item[col] ?? '').toString();
-                        tr.appendChild(td);
-                    });
-
-                    fragment.appendChild(tr);
-                });
-
-                tbody.appendChild(fragment);
-                renderPaginacao();
-                atualizarStatsGerais();
-            }
-
-            function renderPaginacao() {
-                if (!paginacao) return;
-
-                const totalPaginas = Math.max(1, Math.ceil(filtrados.length / pageSize));
-
-                paginacao.innerHTML = `
-                    <button ${paginaAtual <= 1 ? 'disabled' : ''} data-acao="prev">Anterior</button>
-                    <span class="info-pagina">Página ${paginaAtual} de ${totalPaginas}</span>
-                    <button ${paginaAtual >= totalPaginas ? 'disabled' : ''} data-acao="next">Próxima</button>
-                `;
-
-                const prev = paginacao.querySelector('[data-acao="prev"]');
-                const next = paginacao.querySelector('[data-acao="next"]');
-
-                if (prev) {
-                    prev.onclick = () => {
-                        if (paginaAtual > 1) {
-                            paginaAtual--;
-                            renderTabela();
-                        }
-                    };
-                }
-
-                if (next) {
-                    next.onclick = () => {
-                        if (paginaAtual < totalPaginas) {
-                            paginaAtual++;
-                            renderTabela();
-                        }
-                    };
-                }
-            }
-
             function aplicarFiltros() {
+                let linhas = obterLinhas();
+
                 const termo = (busca?.value || '').toLowerCase().trim();
                 const produto = (produtoSelect?.value || '').toLowerCase().trim();
                 const modelo = (modeloSelect?.value || '').toLowerCase().trim();
@@ -773,14 +579,17 @@ $html = @"
                 const precoMin = parseFloat(precoMinInput?.value || '');
                 const precoMax = parseFloat(precoMaxInput?.value || '');
 
-                filtrados = dados.filter(item => {
-                    const texto = Object.values(item).join(' ').toLowerCase();
+                let visiveis = 0;
 
-                    const valorProduto = valorCampo(item, indices.produto).toLowerCase();
-                    const valorModelo = valorCampo(item, indices.modelo).toLowerCase();
-                    const valorGb = valorCampo(item, indices.gb).toLowerCase();
-                    const valorCondicao = valorCampo(item, indices.condicao).toLowerCase();
-                    const valorPreco = extrairNumeroPreco(valorCampo(item, indices.preco));
+                linhas.forEach(linha => {
+                    const tds = linha.querySelectorAll('td');
+                    const texto = linha.innerText.toLowerCase();
+
+                    const valorProduto = (indices.produto >= 0 && tds[indices.produto]) ? tds[indices.produto].innerText.toLowerCase().trim() : '';
+                    const valorModelo = (indices.modelo >= 0 && tds[indices.modelo]) ? tds[indices.modelo].innerText.toLowerCase().trim() : '';
+                    const valorGb = (indices.gb >= 0 && tds[indices.gb]) ? tds[indices.gb].innerText.toLowerCase().trim() : '';
+                    const valorCondicao = (indices.condicao >= 0 && tds[indices.condicao]) ? tds[indices.condicao].innerText.toLowerCase().trim() : '';
+                    const valorPreco = (indices.preco >= 0 && tds[indices.preco]) ? extrairNumeroPreco(tds[indices.preco].innerText) : NaN;
 
                     const okBusca = !termo || texto.includes(termo);
                     const okProduto = !produto || valorProduto === produto;
@@ -790,23 +599,20 @@ $html = @"
                     const okPrecoMin = isNaN(precoMin) || (!isNaN(valorPreco) && valorPreco >= precoMin);
                     const okPrecoMax = isNaN(precoMax) || (!isNaN(valorPreco) && valorPreco <= precoMax);
 
-                    return okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
+                    const mostrar = okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
+                    linha.style.display = mostrar ? '' : 'none';
+
+                    if (mostrar) visiveis++;
                 });
 
-                filtrados = ordenarDados(filtrados);
-                paginaAtual = 1;
+                const linhasOrdenadas = ordenarLinhas(obterLinhas());
+                linhasOrdenadas.forEach(linha => tbody.appendChild(linha));
 
                 if (resumo) {
-                    resumo.textContent = filtrados.length + ' registro(s) encontrado(s)';
+                    resumo.textContent = visiveis + ' registro(s) encontrado(s)';
                 }
 
-                renderTabela();
-            }
-
-            let debounceTimer;
-            function aplicarFiltrosComDebounce() {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(aplicarFiltros, 180);
+                atualizarStatsGerais();
             }
 
             popularFiltros();
@@ -814,7 +620,7 @@ $html = @"
 
             [busca, produtoSelect, modeloSelect, gbSelect, condicaoSelect, precoMinInput, precoMaxInput, ordenacaoSelect].forEach(el => {
                 if (el) {
-                    el.addEventListener('input', aplicarFiltrosComDebounce);
+                    el.addEventListener('input', aplicarFiltros);
                     el.addEventListener('change', aplicarFiltros);
                 }
             });
@@ -846,19 +652,6 @@ $html = @"
             resumoId: 'resumoPrecos'
         });
 
-        configurarFiltros({
-            tabelaId: 'tabelaPrecoDia',
-            buscaId: 'buscaPrecoDia',
-            produtoId: 'produtoPrecoDia',
-            modeloId: 'modeloPrecoDia',
-            gbId: 'gbPrecoDia',
-            condicaoId: 'condicaoPrecoDia',
-            precoMinId: 'precoMinPrecoDia',
-            precoMaxId: 'precoMaxPrecoDia',
-            ordenacaoId: 'ordenacaoPrecoDia',
-            resumoId: 'resumoPrecoDia'
-        });
-
         atualizarStatsGerais();
     </script>
 </body>
@@ -868,4 +661,4 @@ $html = @"
 $destino = Join-Path $docs "index.html"
 [System.IO.File]::WriteAllText($destino, $html, [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "HTML gerado em docs\index.html - dashboard com aba Preco do dia"
+Write-Host "HTML gerado em docs\index.html - dashboard 3.0 corrigido"
