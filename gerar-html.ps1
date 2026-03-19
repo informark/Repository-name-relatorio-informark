@@ -28,17 +28,8 @@ function Nova-TabelaHtml {
         $thead += "<th>$colEscapado</th>`n"
     }
 
-    $tbody = ""
-    foreach ($linha in $Dados) {
-        $tbody += "<tr>`n"
-        foreach ($col in $colunas) {
-            $valor = $linha.$col
-            if ($null -eq $valor) { $valor = "" }
-            $valorEscapado = [System.Net.WebUtility]::HtmlEncode([string]$valor)
-            $tbody += "<td>$valorEscapado</td>`n"
-        }
-        $tbody += "</tr>`n"
-    }
+    $json = $Dados | ConvertTo-Json -Depth 5 -Compress
+    $jsonSeguro = $json -replace '</script>', '<\/script>'
 
     return @"
 <div class="table-wrap">
@@ -48,11 +39,11 @@ function Nova-TabelaHtml {
 $thead
             </tr>
         </thead>
-        <tbody>
-$tbody
-        </tbody>
+        <tbody></tbody>
     </table>
 </div>
+<div class="paginacao" id="${IdTabela}_paginacao"></div>
+<script type="application/json" id="${IdTabela}_data">$jsonSeguro</script>
 "@
 }
 
@@ -69,6 +60,8 @@ function Importar-XlsxComoObjetos {
 
     $excel = $null
     $workbook = $null
+    $worksheet = $null
+    $usedRange = $null
 
     try {
         $excel = New-Object -ComObject Excel.Application
@@ -143,7 +136,6 @@ if (Test-Path $arquivoPrecos) {
 if (Test-Path $arquivoPrecoDia) {
     $dadosPrecoDia = Import-Csv $arquivoPrecoDia
 }
-
 
 $tabelaRelatorio = Nova-TabelaHtml -Dados $dadosRelatorio -IdTabela "tabelaRelatorio"
 $tabelaPrecos = Nova-TabelaHtml -Dados $dadosPrecos -IdTabela "tabelaPrecos"
@@ -339,6 +331,35 @@ $html = @"
 
         tr:hover td {
             background: #f8fafc;
+        }
+
+        .paginacao {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 14px;
+        }
+
+        .paginacao button {
+            border: none;
+            background: #0f172a;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .paginacao button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .paginacao .info-pagina {
+            font-size: 14px;
+            color: #4b5563;
+            font-weight: 600;
         }
 
         @media (max-width: 1200px) {
@@ -624,28 +645,41 @@ $html = @"
             const precoMaxInput = document.getElementById(config.precoMaxId);
             const ordenacaoSelect = document.getElementById(config.ordenacaoId);
             const resumo = document.getElementById(config.resumoId);
+            const paginacao = document.getElementById(config.tabelaId + '_paginacao');
 
             const indices = detectarIndices(config.tabelaId);
+            const jsonNode = document.getElementById(config.tabelaId + '_data');
+            const dados = jsonNode ? JSON.parse(jsonNode.textContent) : [];
 
-            function obterLinhas() {
-                return Array.from(tbody.querySelectorAll('tr'));
+            let filtrados = [...dados];
+            let paginaAtual = 1;
+            const pageSize = 50;
+
+            const colunas = dados.length ? Object.keys(dados[0]) : [];
+
+            function valorCampo(item, idx) {
+                if (idx < 0 || idx >= colunas.length) return '';
+                const chave = colunas[idx];
+                const valor = item[chave];
+                return (valor ?? '').toString().trim();
             }
 
             function popularFiltros() {
-                const linhas = obterLinhas();
-
                 const produtos = new Set();
                 const modelos = new Set();
                 const gbs = new Set();
                 const condicoes = new Set();
 
-                linhas.forEach(linha => {
-                    const tds = linha.querySelectorAll('td');
+                dados.forEach(item => {
+                    const produto = valorCampo(item, indices.produto);
+                    const modelo = valorCampo(item, indices.modelo);
+                    const gb = valorCampo(item, indices.gb);
+                    const condicao = valorCampo(item, indices.condicao);
 
-                    if (indices.produto >= 0 && tds[indices.produto]) produtos.add(tds[indices.produto].innerText.trim());
-                    if (indices.modelo >= 0 && tds[indices.modelo]) modelos.add(tds[indices.modelo].innerText.trim());
-                    if (indices.gb >= 0 && tds[indices.gb]) gbs.add(tds[indices.gb].innerText.trim());
-                    if (indices.condicao >= 0 && tds[indices.condicao]) condicoes.add(tds[indices.condicao].innerText.trim());
+                    if (produto) produtos.add(produto);
+                    if (modelo) modelos.add(modelo);
+                    if (gb) gbs.add(gb);
+                    if (condicao) condicoes.add(condicao);
                 });
 
                 preencherSelectComValores(config.produtoId, Array.from(produtos));
@@ -654,16 +688,13 @@ $html = @"
                 preencherSelectComValores(config.condicaoId, Array.from(condicoes));
             }
 
-            function ordenarLinhas(linhas) {
+            function ordenarDados(lista) {
                 const tipoOrdenacao = ordenacaoSelect?.value || '';
-                if (!tipoOrdenacao || indices.preco < 0) return linhas;
+                if (!tipoOrdenacao || indices.preco < 0) return lista;
 
-                return linhas.sort((a, b) => {
-                    const aTds = a.querySelectorAll('td');
-                    const bTds = b.querySelectorAll('td');
-
-                    const aPreco = aTds[indices.preco] ? extrairNumeroPreco(aTds[indices.preco].innerText) : NaN;
-                    const bPreco = bTds[indices.preco] ? extrairNumeroPreco(bTds[indices.preco].innerText) : NaN;
+                return [...lista].sort((a, b) => {
+                    const aPreco = extrairNumeroPreco(valorCampo(a, indices.preco));
+                    const bPreco = extrairNumeroPreco(valorCampo(b, indices.preco));
 
                     const av = isNaN(aPreco) ? 0 : aPreco;
                     const bv = isNaN(bPreco) ? 0 : bPreco;
@@ -674,9 +705,66 @@ $html = @"
                 });
             }
 
-            function aplicarFiltros() {
-                let linhas = obterLinhas();
+            function renderTabela() {
+                tbody.innerHTML = '';
 
+                const inicio = (paginaAtual - 1) * pageSize;
+                const fim = inicio + pageSize;
+                const pagina = filtrados.slice(inicio, fim);
+
+                const fragment = document.createDocumentFragment();
+
+                pagina.forEach(item => {
+                    const tr = document.createElement('tr');
+
+                    colunas.forEach(col => {
+                        const td = document.createElement('td');
+                        td.textContent = (item[col] ?? '').toString();
+                        tr.appendChild(td);
+                    });
+
+                    fragment.appendChild(tr);
+                });
+
+                tbody.appendChild(fragment);
+                renderPaginacao();
+                atualizarStatsGerais();
+            }
+
+            function renderPaginacao() {
+                if (!paginacao) return;
+
+                const totalPaginas = Math.max(1, Math.ceil(filtrados.length / pageSize));
+
+                paginacao.innerHTML = `
+                    <button ${paginaAtual <= 1 ? 'disabled' : ''} data-acao="prev">Anterior</button>
+                    <span class="info-pagina">Página ${paginaAtual} de ${totalPaginas}</span>
+                    <button ${paginaAtual >= totalPaginas ? 'disabled' : ''} data-acao="next">Próxima</button>
+                `;
+
+                const prev = paginacao.querySelector('[data-acao="prev"]');
+                const next = paginacao.querySelector('[data-acao="next"]');
+
+                if (prev) {
+                    prev.onclick = () => {
+                        if (paginaAtual > 1) {
+                            paginaAtual--;
+                            renderTabela();
+                        }
+                    };
+                }
+
+                if (next) {
+                    next.onclick = () => {
+                        if (paginaAtual < totalPaginas) {
+                            paginaAtual++;
+                            renderTabela();
+                        }
+                    };
+                }
+            }
+
+            function aplicarFiltros() {
                 const termo = (busca?.value || '').toLowerCase().trim();
                 const produto = (produtoSelect?.value || '').toLowerCase().trim();
                 const modelo = (modeloSelect?.value || '').toLowerCase().trim();
@@ -685,17 +773,14 @@ $html = @"
                 const precoMin = parseFloat(precoMinInput?.value || '');
                 const precoMax = parseFloat(precoMaxInput?.value || '');
 
-                let visiveis = 0;
+                filtrados = dados.filter(item => {
+                    const texto = Object.values(item).join(' ').toLowerCase();
 
-                linhas.forEach(linha => {
-                    const tds = linha.querySelectorAll('td');
-                    const texto = linha.innerText.toLowerCase();
-
-                    const valorProduto = (indices.produto >= 0 && tds[indices.produto]) ? tds[indices.produto].innerText.toLowerCase().trim() : '';
-                    const valorModelo = (indices.modelo >= 0 && tds[indices.modelo]) ? tds[indices.modelo].innerText.toLowerCase().trim() : '';
-                    const valorGb = (indices.gb >= 0 && tds[indices.gb]) ? tds[indices.gb].innerText.toLowerCase().trim() : '';
-                    const valorCondicao = (indices.condicao >= 0 && tds[indices.condicao]) ? tds[indices.condicao].innerText.toLowerCase().trim() : '';
-                    const valorPreco = (indices.preco >= 0 && tds[indices.preco]) ? extrairNumeroPreco(tds[indices.preco].innerText) : NaN;
+                    const valorProduto = valorCampo(item, indices.produto).toLowerCase();
+                    const valorModelo = valorCampo(item, indices.modelo).toLowerCase();
+                    const valorGb = valorCampo(item, indices.gb).toLowerCase();
+                    const valorCondicao = valorCampo(item, indices.condicao).toLowerCase();
+                    const valorPreco = extrairNumeroPreco(valorCampo(item, indices.preco));
 
                     const okBusca = !termo || texto.includes(termo);
                     const okProduto = !produto || valorProduto === produto;
@@ -705,20 +790,23 @@ $html = @"
                     const okPrecoMin = isNaN(precoMin) || (!isNaN(valorPreco) && valorPreco >= precoMin);
                     const okPrecoMax = isNaN(precoMax) || (!isNaN(valorPreco) && valorPreco <= precoMax);
 
-                    const mostrar = okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
-                    linha.style.display = mostrar ? '' : 'none';
-
-                    if (mostrar) visiveis++;
+                    return okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
                 });
 
-                const linhasOrdenadas = ordenarLinhas(obterLinhas());
-                linhasOrdenadas.forEach(linha => tbody.appendChild(linha));
+                filtrados = ordenarDados(filtrados);
+                paginaAtual = 1;
 
                 if (resumo) {
-                    resumo.textContent = visiveis + ' registro(s) encontrado(s)';
+                    resumo.textContent = filtrados.length + ' registro(s) encontrado(s)';
                 }
 
-                atualizarStatsGerais();
+                renderTabela();
+            }
+
+            let debounceTimer;
+            function aplicarFiltrosComDebounce() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(aplicarFiltros, 180);
             }
 
             popularFiltros();
@@ -726,7 +814,7 @@ $html = @"
 
             [busca, produtoSelect, modeloSelect, gbSelect, condicaoSelect, precoMinInput, precoMaxInput, ordenacaoSelect].forEach(el => {
                 if (el) {
-                    el.addEventListener('input', aplicarFiltros);
+                    el.addEventListener('input', aplicarFiltrosComDebounce);
                     el.addEventListener('change', aplicarFiltros);
                 }
             });
