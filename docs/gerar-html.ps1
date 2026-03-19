@@ -1,0 +1,783 @@
+$origem = "C:\Users\iNFORMARK Loja\Desktop\iphone-inteligencia\Bot"
+$docs = Join-Path $origem "docs"
+
+New-Item -ItemType Directory -Force -Path $docs | Out-Null
+
+$arquivoRelatorio = Get-ChildItem -Path $origem -Filter "relatorio_menor_preco_*.csv" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+
+$arquivoPrecos = Join-Path $origem "precos.csv"
+$arquivoPrecoDia = Join-Path $origem "preco_dia.csv"
+
+function Nova-TabelaHtml {
+    param (
+        [array]$Dados,
+        [string]$IdTabela
+    )
+
+    if (-not $Dados -or $Dados.Count -eq 0) {
+        return "<p>Nenhum dado encontrado.</p>"
+    }
+
+    $colunas = $Dados[0].PSObject.Properties.Name
+
+    $thead = ""
+    foreach ($col in $colunas) {
+        $colEscapado = [System.Net.WebUtility]::HtmlEncode([string]$col)
+        $thead += "<th>$colEscapado</th>`n"
+    }
+
+    $tbody = ""
+    foreach ($linha in $Dados) {
+        $tbody += "<tr>`n"
+        foreach ($col in $colunas) {
+            $valor = $linha.$col
+            if ($null -eq $valor) { $valor = "" }
+            $valorEscapado = [System.Net.WebUtility]::HtmlEncode([string]$valor)
+            $tbody += "<td>$valorEscapado</td>`n"
+        }
+        $tbody += "</tr>`n"
+    }
+
+    return @"
+<div class="table-wrap">
+    <table id="$IdTabela">
+        <thead>
+            <tr>
+$thead
+            </tr>
+        </thead>
+        <tbody>
+$tbody
+        </tbody>
+    </table>
+</div>
+"@
+}
+
+function Importar-XlsxComoObjetos {
+    param (
+        [string]$CaminhoArquivo
+    )
+
+    $resultado = @()
+
+    if (-not (Test-Path $CaminhoArquivo)) {
+        return $resultado
+    }
+
+    $excel = $null
+    $workbook = $null
+
+    try {
+        $excel = New-Object -ComObject Excel.Application
+        $excel.Visible = $false
+        $excel.DisplayAlerts = $false
+
+        $workbook = $excel.Workbooks.Open($CaminhoArquivo)
+        $worksheet = $workbook.Worksheets.Item(1)
+        $usedRange = $worksheet.UsedRange
+
+        $rowCount = $usedRange.Rows.Count
+        $colCount = $usedRange.Columns.Count
+
+        if ($rowCount -lt 2 -or $colCount -lt 1) {
+            return @()
+        }
+
+        $headers = @()
+        for ($col = 1; $col -le $colCount; $col++) {
+            $headerText = [string]$usedRange.Cells.Item(1, $col).Text
+            if ([string]::IsNullOrWhiteSpace($headerText)) {
+                $headerText = "Coluna$col"
+            }
+            $headers += $headerText.Trim()
+        }
+
+        for ($row = 2; $row -le $rowCount; $row++) {
+            $obj = [ordered]@{}
+            $temConteudo = $false
+
+            for ($col = 1; $col -le $colCount; $col++) {
+                $valor = [string]$usedRange.Cells.Item($row, $col).Text
+                if (-not [string]::IsNullOrWhiteSpace($valor)) {
+                    $temConteudo = $true
+                }
+                $obj[$headers[$col - 1]] = $valor
+            }
+
+            if ($temConteudo) {
+                $resultado += [PSCustomObject]$obj
+            }
+        }
+    }
+    finally {
+        if ($workbook) { $workbook.Close($false) | Out-Null }
+        if ($excel) { $excel.Quit() | Out-Null }
+
+        if ($usedRange) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($usedRange) }
+        if ($worksheet) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($worksheet) }
+        if ($workbook) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) }
+        if ($excel) { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) }
+
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+    }
+
+    return $resultado
+}
+
+$dadosRelatorio = @()
+$dadosPrecos = @()
+$dadosPrecoDia = @()
+
+if ($arquivoRelatorio) {
+    $dadosRelatorio = Import-Csv $arquivoRelatorio.FullName
+}
+
+if (Test-Path $arquivoPrecos) {
+    $dadosPrecos = Import-Csv $arquivoPrecos
+}
+
+if (Test-Path $arquivoPrecoDia) {
+    $dadosPrecoDia = Import-Csv $arquivoPrecoDia
+}
+
+
+$tabelaRelatorio = Nova-TabelaHtml -Dados $dadosRelatorio -IdTabela "tabelaRelatorio"
+$tabelaPrecos = Nova-TabelaHtml -Dados $dadosPrecos -IdTabela "tabelaPrecos"
+$tabelaPrecoDia = Nova-TabelaHtml -Dados $dadosPrecoDia -IdTabela "tabelaPrecoDia"
+
+$atualizadoEm = Get-Date -Format "dd/MM/yyyy HH:mm:ss"
+$nomeArquivoRelatorio = if ($arquivoRelatorio) { $arquivoRelatorio.Name } else { "Nenhum relatório encontrado" }
+$nomeArquivoPrecos = if (Test-Path $arquivoPrecos) { "precos.csv" } else { "precos.csv não encontrado" }
+$nomeArquivoPrecoDia = if (Test-Path $arquivoPrecoDia) { "preco_dia.csv" } else { "preco_dia.csv não encontrado" }
+
+$html = @"
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informark Dashboard</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            padding: 20px;
+            color: #111827;
+        }
+
+        .container {
+            max-width: 1450px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            border-radius: 22px;
+            padding: 28px;
+            margin-bottom: 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+        }
+
+        .hero h1 {
+            margin: 0 0 8px 0;
+            font-size: 34px;
+        }
+
+        .hero p {
+            margin: 0;
+            color: #cbd5e1;
+            font-size: 15px;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(160px, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .stat-label {
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #111827;
+            word-break: break-word;
+        }
+
+        .main-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .meta {
+            color: #6b7280;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0 16px 0;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            border: none;
+            background: #e5e7eb;
+            color: #111827;
+            padding: 12px 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        .tab-btn.active {
+            background: #0f172a;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .subtitulo {
+            margin-top: 6px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .filtros {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(140px, 1fr));
+            gap: 10px;
+            margin: 15px 0 12px 0;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            background: white;
+            color: #111827;
+        }
+
+        .resumo {
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 14px;
+            font-weight: 600;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #0f172a;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        tr:hover td {
+            background: #f8fafc;
+        }
+
+        @media (max-width: 1200px) {
+            .stats {
+                grid-template-columns: repeat(3, minmax(140px, 1fr));
+            }
+
+            .filtros {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 12px;
+            }
+
+            .hero {
+                padding: 20px;
+            }
+
+            .hero h1 {
+                font-size: 26px;
+            }
+
+            .main-card {
+                padding: 16px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .filtros {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-value {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="hero">
+            <h1>Informark Dashboard</h1>
+            <p>Painel de acompanhamento de pre&ccedil;os e relat&oacute;rios do bot.</p>
+            <div class="pill">Atualizado em $atualizadoEm</div>
+        </section>
+
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Registros vis&iacute;veis</div>
+                <div class="stat-value" id="statRegistros">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Modelos vis&iacute;veis</div>
+                <div class="stat-value" id="statModelos">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Menor pre&ccedil;o vis&iacute;vel</div>
+                <div class="stat-value" id="statMinPreco">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Maior pre&ccedil;o vis&iacute;vel</div>
+                <div class="stat-value" id="statMaxPreco">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Aba atual</div>
+                <div class="stat-value" id="statAba">Menor Pre&ccedil;o</div>
+            </div>
+        </section>
+
+        <section class="main-card">
+            <div class="meta">&Uacute;ltima atualiza&ccedil;&atilde;o: $atualizadoEm</div>
+
+            <div class="tabs">
+                <button class="tab-btn active" onclick="abrirAba('abaRelatorio', this, 'Menor Preço')">Menor Pre&ccedil;o</button>
+                <button class="tab-btn" onclick="abrirAba('abaPrecos', this, 'Planilha de Preços')">Planilha de Pre&ccedil;os</button>
+                <button class="tab-btn" onclick="abrirAba('abaPrecoDia', this, 'Preco do dia')">Preco do dia</button>
+            </div>
+
+            <div id="abaRelatorio" class="tab-content active">
+                <div class="subtitulo">Arquivo base: $nomeArquivoRelatorio</div>
+
+                <div class="filtros">
+                    <input type="text" id="buscaRelatorio" placeholder="Buscar no relat&oacute;rio...">
+                    <select id="produtoRelatorio"><option value="">Todos os produtos</option></select>
+                    <select id="modeloRelatorio"><option value="">Todos os modelos</option></select>
+                    <select id="gbRelatorio"><option value="">Todos os GB</option></select>
+                    <select id="condicaoRelatorio"><option value="">Todas as condi&ccedil;&otilde;es</option></select>
+                    <input type="number" id="precoMinRelatorio" placeholder="Pre&ccedil;o m&iacute;nimo">
+                    <input type="number" id="precoMaxRelatorio" placeholder="Pre&ccedil;o m&aacute;ximo">
+                    <select id="ordenacaoRelatorio">
+                        <option value="">Ordena&ccedil;&atilde;o padr&atilde;o</option>
+                        <option value="preco-asc">Pre&ccedil;o: menor para maior</option>
+                        <option value="preco-desc">Pre&ccedil;o: maior para menor</option>
+                    </select>
+                </div>
+
+                <div class="resumo" id="resumoRelatorio"></div>
+                $tabelaRelatorio
+            </div>
+
+            <div id="abaPrecos" class="tab-content">
+                <div class="subtitulo">Arquivo base: $nomeArquivoPrecos</div>
+
+                <div class="filtros">
+                    <input type="text" id="buscaPrecos" placeholder="Buscar na planilha de pre&ccedil;os...">
+                    <select id="produtoPrecos"><option value="">Todos os produtos</option></select>
+                    <select id="modeloPrecos"><option value="">Todos os modelos</option></select>
+                    <select id="gbPrecos"><option value="">Todos os GB</option></select>
+                    <select id="condicaoPrecos"><option value="">Todas as condi&ccedil;&otilde;es</option></select>
+                    <input type="number" id="precoMinPrecos" placeholder="Pre&ccedil;o m&iacute;nimo">
+                    <input type="number" id="precoMaxPrecos" placeholder="Pre&ccedil;o m&aacute;ximo">
+                    <select id="ordenacaoPrecos">
+                        <option value="">Ordena&ccedil;&atilde;o padr&atilde;o</option>
+                        <option value="preco-asc">Pre&ccedil;o: menor para maior</option>
+                        <option value="preco-desc">Pre&ccedil;o: maior para menor</option>
+                    </select>
+                </div>
+
+                <div class="resumo" id="resumoPrecos"></div>
+                $tabelaPrecos
+            </div>
+
+            <div id="abaPrecoDia" class="tab-content">
+                <div class="subtitulo">Arquivo base: $nomeArquivoPrecoDia</div>
+
+                <div class="filtros">
+                    <input type="text" id="buscaPrecoDia" placeholder="Buscar na planilha preco do dia...">
+                    <select id="produtoPrecoDia"><option value="">Todos os produtos</option></select>
+                    <select id="modeloPrecoDia"><option value="">Todos os modelos</option></select>
+                    <select id="gbPrecoDia"><option value="">Todos os GB</option></select>
+                    <select id="condicaoPrecoDia"><option value="">Todas as condi&ccedil;&otilde;es</option></select>
+                    <input type="number" id="precoMinPrecoDia" placeholder="Pre&ccedil;o m&iacute;nimo">
+                    <input type="number" id="precoMaxPrecoDia" placeholder="Pre&ccedil;o m&aacute;ximo">
+                    <select id="ordenacaoPrecoDia">
+                        <option value="">Ordena&ccedil;&atilde;o padr&atilde;o</option>
+                        <option value="preco-asc">Pre&ccedil;o: menor para maior</option>
+                        <option value="preco-desc">Pre&ccedil;o: maior para menor</option>
+                    </select>
+                </div>
+
+                <div class="resumo" id="resumoPrecoDia"></div>
+                $tabelaPrecoDia
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function abrirAba(idAba, botao, nomeAba) {
+            document.querySelectorAll('.tab-content').forEach(function(aba) {
+                aba.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab-btn').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(idAba).classList.add('active');
+            botao.classList.add('active');
+
+            if (nomeAba === 'Menor Preço') {
+                document.getElementById('statAba').innerHTML = 'Menor Pre&ccedil;o';
+            } else if (nomeAba === 'Planilha de Preços') {
+                document.getElementById('statAba').innerHTML = 'Planilha de Pre&ccedil;os';
+            } else {
+                document.getElementById('statAba').innerHTML = 'Preco do dia';
+            }
+
+            atualizarStatsGerais();
+        }
+
+        function detectarIndices(tabelaId) {
+            const ths = Array.from(document.querySelectorAll('#' + tabelaId + ' thead th'))
+                .map(th => th.innerText.trim().toLowerCase());
+
+            function acharIndiceExatoOuParcial(prioridades) {
+                for (const termo of prioridades) {
+                    const exato = ths.findIndex(nome => nome === termo);
+                    if (exato >= 0) return exato;
+                }
+
+                for (const termo of prioridades) {
+                    const parcial = ths.findIndex(nome => nome.includes(termo));
+                    if (parcial >= 0) return parcial;
+                }
+
+                return -1;
+            }
+
+            return {
+                produto: acharIndiceExatoOuParcial(['produto', 'tipo', 'categoria']),
+                modelo: acharIndiceExatoOuParcial(['modelo', 'nome modelo']),
+                gb: acharIndiceExatoOuParcial(['gb', 'armazenamento', 'memoria', 'memória', 'capacidade']),
+                condicao: acharIndiceExatoOuParcial(['condicao', 'condição', 'estado']),
+                preco: acharIndiceExatoOuParcial(['preco', 'preço', 'valor', 'menorpreco', 'menor preço'])
+            };
+        }
+
+        function preencherSelectComValores(selectId, valores) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            const valorAtual = select.value;
+            const primeiroOption = select.options[0].outerHTML;
+            select.innerHTML = primeiroOption;
+
+            valores
+                .filter(v => v && v.trim() !== '')
+                .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }))
+                .forEach(valor => {
+                    const option = document.createElement('option');
+                    option.value = valor;
+                    option.textContent = valor;
+                    select.appendChild(option);
+                });
+
+            select.value = valorAtual;
+        }
+
+        function extrairNumeroPreco(texto) {
+            if (!texto) return NaN;
+            const limpo = texto
+                .toString()
+                .replace(/R\$/gi, '')
+                .replace(/\s+/g, '')
+                .replace(/\./g, '')
+                .replace(/,/g, '.')
+                .replace(/[^\d.-]/g, '');
+            return parseFloat(limpo);
+        }
+
+        function formatarPreco(valor) {
+            if (isNaN(valor)) return '-';
+            return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function atualizarStatsGerais() {
+            const abaAtiva = document.querySelector('.tab-content.active');
+            if (!abaAtiva) return;
+
+            const tabela = abaAtiva.querySelector('table');
+            if (!tabela) return;
+
+            const linhasVisiveis = Array.from(tabela.querySelectorAll('tbody tr')).filter(l => l.style.display !== 'none');
+            document.getElementById('statRegistros').textContent = linhasVisiveis.length;
+
+            const ths = Array.from(tabela.querySelectorAll('thead th')).map(th => th.innerText.trim().toLowerCase());
+            const idxModelo = ths.findIndex(t => t === 'modelo' || t.includes('modelo'));
+            const idxPreco = ths.findIndex(t => t === 'preço' || t === 'preco' || t.includes('preço') || t.includes('preco') || t.includes('menorpreco'));
+
+            const modelos = new Set();
+            const precos = [];
+
+            linhasVisiveis.forEach(linha => {
+                const tds = linha.querySelectorAll('td');
+                if (idxModelo >= 0 && tds[idxModelo]) modelos.add(tds[idxModelo].innerText.trim());
+                if (idxPreco >= 0 && tds[idxPreco]) {
+                    const n = extrairNumeroPreco(tds[idxPreco].innerText.trim());
+                    if (!isNaN(n)) precos.push(n);
+                }
+            });
+
+            document.getElementById('statModelos').textContent = modelos.size;
+            document.getElementById('statMinPreco').textContent = precos.length ? formatarPreco(Math.min(...precos)) : '-';
+            document.getElementById('statMaxPreco').textContent = precos.length ? formatarPreco(Math.max(...precos)) : '-';
+        }
+
+        function configurarFiltros(config) {
+            const tabela = document.getElementById(config.tabelaId);
+            if (!tabela) return;
+
+            const tbody = tabela.querySelector('tbody');
+            const busca = document.getElementById(config.buscaId);
+            const produtoSelect = document.getElementById(config.produtoId);
+            const modeloSelect = document.getElementById(config.modeloId);
+            const gbSelect = document.getElementById(config.gbId);
+            const condicaoSelect = document.getElementById(config.condicaoId);
+            const precoMinInput = document.getElementById(config.precoMinId);
+            const precoMaxInput = document.getElementById(config.precoMaxId);
+            const ordenacaoSelect = document.getElementById(config.ordenacaoId);
+            const resumo = document.getElementById(config.resumoId);
+
+            const indices = detectarIndices(config.tabelaId);
+
+            function obterLinhas() {
+                return Array.from(tbody.querySelectorAll('tr'));
+            }
+
+            function popularFiltros() {
+                const linhas = obterLinhas();
+
+                const produtos = new Set();
+                const modelos = new Set();
+                const gbs = new Set();
+                const condicoes = new Set();
+
+                linhas.forEach(linha => {
+                    const tds = linha.querySelectorAll('td');
+
+                    if (indices.produto >= 0 && tds[indices.produto]) produtos.add(tds[indices.produto].innerText.trim());
+                    if (indices.modelo >= 0 && tds[indices.modelo]) modelos.add(tds[indices.modelo].innerText.trim());
+                    if (indices.gb >= 0 && tds[indices.gb]) gbs.add(tds[indices.gb].innerText.trim());
+                    if (indices.condicao >= 0 && tds[indices.condicao]) condicoes.add(tds[indices.condicao].innerText.trim());
+                });
+
+                preencherSelectComValores(config.produtoId, Array.from(produtos));
+                preencherSelectComValores(config.modeloId, Array.from(modelos));
+                preencherSelectComValores(config.gbId, Array.from(gbs));
+                preencherSelectComValores(config.condicaoId, Array.from(condicoes));
+            }
+
+            function ordenarLinhas(linhas) {
+                const tipoOrdenacao = ordenacaoSelect?.value || '';
+                if (!tipoOrdenacao || indices.preco < 0) return linhas;
+
+                return linhas.sort((a, b) => {
+                    const aTds = a.querySelectorAll('td');
+                    const bTds = b.querySelectorAll('td');
+
+                    const aPreco = aTds[indices.preco] ? extrairNumeroPreco(aTds[indices.preco].innerText) : NaN;
+                    const bPreco = bTds[indices.preco] ? extrairNumeroPreco(bTds[indices.preco].innerText) : NaN;
+
+                    const av = isNaN(aPreco) ? 0 : aPreco;
+                    const bv = isNaN(bPreco) ? 0 : bPreco;
+
+                    if (tipoOrdenacao === 'preco-asc') return av - bv;
+                    if (tipoOrdenacao === 'preco-desc') return bv - av;
+                    return 0;
+                });
+            }
+
+            function aplicarFiltros() {
+                let linhas = obterLinhas();
+
+                const termo = (busca?.value || '').toLowerCase().trim();
+                const produto = (produtoSelect?.value || '').toLowerCase().trim();
+                const modelo = (modeloSelect?.value || '').toLowerCase().trim();
+                const gb = (gbSelect?.value || '').toLowerCase().trim();
+                const condicao = (condicaoSelect?.value || '').toLowerCase().trim();
+                const precoMin = parseFloat(precoMinInput?.value || '');
+                const precoMax = parseFloat(precoMaxInput?.value || '');
+
+                let visiveis = 0;
+
+                linhas.forEach(linha => {
+                    const tds = linha.querySelectorAll('td');
+                    const texto = linha.innerText.toLowerCase();
+
+                    const valorProduto = (indices.produto >= 0 && tds[indices.produto]) ? tds[indices.produto].innerText.toLowerCase().trim() : '';
+                    const valorModelo = (indices.modelo >= 0 && tds[indices.modelo]) ? tds[indices.modelo].innerText.toLowerCase().trim() : '';
+                    const valorGb = (indices.gb >= 0 && tds[indices.gb]) ? tds[indices.gb].innerText.toLowerCase().trim() : '';
+                    const valorCondicao = (indices.condicao >= 0 && tds[indices.condicao]) ? tds[indices.condicao].innerText.toLowerCase().trim() : '';
+                    const valorPreco = (indices.preco >= 0 && tds[indices.preco]) ? extrairNumeroPreco(tds[indices.preco].innerText) : NaN;
+
+                    const okBusca = !termo || texto.includes(termo);
+                    const okProduto = !produto || valorProduto === produto;
+                    const okModelo = !modelo || valorModelo === modelo;
+                    const okGb = !gb || valorGb === gb;
+                    const okCondicao = !condicao || valorCondicao === condicao;
+                    const okPrecoMin = isNaN(precoMin) || (!isNaN(valorPreco) && valorPreco >= precoMin);
+                    const okPrecoMax = isNaN(precoMax) || (!isNaN(valorPreco) && valorPreco <= precoMax);
+
+                    const mostrar = okBusca && okProduto && okModelo && okGb && okCondicao && okPrecoMin && okPrecoMax;
+                    linha.style.display = mostrar ? '' : 'none';
+
+                    if (mostrar) visiveis++;
+                });
+
+                const linhasOrdenadas = ordenarLinhas(obterLinhas());
+                linhasOrdenadas.forEach(linha => tbody.appendChild(linha));
+
+                if (resumo) {
+                    resumo.textContent = visiveis + ' registro(s) encontrado(s)';
+                }
+
+                atualizarStatsGerais();
+            }
+
+            popularFiltros();
+            aplicarFiltros();
+
+            [busca, produtoSelect, modeloSelect, gbSelect, condicaoSelect, precoMinInput, precoMaxInput, ordenacaoSelect].forEach(el => {
+                if (el) {
+                    el.addEventListener('input', aplicarFiltros);
+                    el.addEventListener('change', aplicarFiltros);
+                }
+            });
+        }
+
+        configurarFiltros({
+            tabelaId: 'tabelaRelatorio',
+            buscaId: 'buscaRelatorio',
+            produtoId: 'produtoRelatorio',
+            modeloId: 'modeloRelatorio',
+            gbId: 'gbRelatorio',
+            condicaoId: 'condicaoRelatorio',
+            precoMinId: 'precoMinRelatorio',
+            precoMaxId: 'precoMaxRelatorio',
+            ordenacaoId: 'ordenacaoRelatorio',
+            resumoId: 'resumoRelatorio'
+        });
+
+        configurarFiltros({
+            tabelaId: 'tabelaPrecos',
+            buscaId: 'buscaPrecos',
+            produtoId: 'produtoPrecos',
+            modeloId: 'modeloPrecos',
+            gbId: 'gbPrecos',
+            condicaoId: 'condicaoPrecos',
+            precoMinId: 'precoMinPrecos',
+            precoMaxId: 'precoMaxPrecos',
+            ordenacaoId: 'ordenacaoPrecos',
+            resumoId: 'resumoPrecos'
+        });
+
+        configurarFiltros({
+            tabelaId: 'tabelaPrecoDia',
+            buscaId: 'buscaPrecoDia',
+            produtoId: 'produtoPrecoDia',
+            modeloId: 'modeloPrecoDia',
+            gbId: 'gbPrecoDia',
+            condicaoId: 'condicaoPrecoDia',
+            precoMinId: 'precoMinPrecoDia',
+            precoMaxId: 'precoMaxPrecoDia',
+            ordenacaoId: 'ordenacaoPrecoDia',
+            resumoId: 'resumoPrecoDia'
+        });
+
+        atualizarStatsGerais();
+    </script>
+</body>
+</html>
+"@
+
+$destino = Join-Path $docs "index.html"
+[System.IO.File]::WriteAllText($destino, $html, [System.Text.UTF8Encoding]::new($false))
+
+Write-Host "HTML gerado em docs\index.html - dashboard com aba Preco do dia"
