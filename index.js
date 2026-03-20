@@ -93,8 +93,8 @@ function novoPodeEnviarPorPreco({
   const prod = (produto || "").toString().trim();
   if (!["iPhone", "iPad", "Apple Watch"].includes(prod)) return true;
 
-  const cond = (condicaoFinal || "").toString().trim().toLowerCase();
-  if (!["novo", "seminovo"].includes(cond)) return true;
+  const cond = (condicaoFinal || "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!["novo", "seminovo", "nao informado"].includes(cond)) return true;
 
   const m = (modelo || "modelo não informado").toString().trim();
   const gb = (armazenamento || "").toString().trim().toUpperCase(); // 128GB
@@ -124,9 +124,9 @@ function novoMarcarEnviado({
   condicaoFinal,
 }) {
   const prod = (produto || "").toString().trim();
-  const cond = (condicaoFinal || "").toString().trim().toLowerCase();
+  const cond = (condicaoFinal || "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (!["iPhone", "iPad", "Apple Watch"].includes(prod)) return;
-  if (!["novo", "seminovo"].includes(cond)) return;
+  if (!["novo", "seminovo", "nao informado"].includes(cond)) return;
 
   const m = (modelo || "modelo não informado").toString().trim();
   const gb = (armazenamento || "").toString().trim().toUpperCase();
