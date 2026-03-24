@@ -447,7 +447,7 @@ $html = @"
             <div class="tabs">
                 <button class="tab-btn active" onclick="abrirAba('abaRelatorio', this, 'Menor Preço')">Menor Pre&ccedil;o</button>
                 <button class="tab-btn" onclick="abrirAba('abaPrecos', this, 'Planilha de Preços')">Planilha de Pre&ccedil;os</button>
-                <button class="tab-btn" onclick="abrirAba('abaPrecoDia', this, 'Preço do dia')">Preço do dia</button>
+                <button class="tab-btn" onclick="abrirAba('abaPrecoDia', this, 'Preço do dia')">Preco do dia</button>
                 <button class="tab-btn" onclick="abrirAba('abaPrecoOntem', this, 'Precos de ontem')">Pre&ccedil;os de ontem</button>
                 </div>
 
@@ -559,7 +559,7 @@ $html = @"
             } else if (nomeAba === 'Planilha de Preços') {
                 document.getElementById('statAba').innerHTML = 'Planilha de Pre&ccedil;os';
             } else {
-                document.getElementById('statAba').innerHTML = 'Preço do dia';
+                document.getElementById('statAba').innerHTML = 'Preco do dia';
             }
 
             atualizarStatsGerais();
@@ -923,4 +923,4 @@ $html = @"
 $destino = Join-Path $docs "index.html"
 [System.IO.File]::WriteAllText($destino, $html, [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "HTML gerado em docs\index.html - dashboard com aba Preço do dia"
+Write-Host "HTML gerado em docs\index.html - dashboard com aba Preco do dia"
