@@ -4558,7 +4558,7 @@ client.on("message", async (msg) => {
             }
 
             // Limite dinâmico por P25
-            const limiteDin = obterLimiteDinamico(limitesDinamicos, item.produto, item.modelo, item.armazenamento, condicaoFinal);
+            const limiteDin = obterLimiteDinamico(limitesDinamicos, item.produto, item.modelo, item.armazenamento || "", condicaoFinal);
             if (limiteDin && novoPreco > limiteDin.p25) {
               console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${item.produto} ${item.modelo})`);
               continue; // ou return no fluxo individual
@@ -4949,7 +4949,7 @@ client.on("message", async (msg) => {
         }
 
         // Limite dinâmico por P25
-        const limiteDin = obterLimiteDinamico(limitesDinamicos, produto, modeloLimpo, armazenamento, condicaoFinal);
+        const limiteDin = obterLimiteDinamico(limitesDinamicos, produto, modeloLimpo, armazenamento || "", condicaoFinal);
         if (limiteDin && novoPreco > limiteDin.p25) {
           console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${produto} ${modeloLimpo})`);
           return;
