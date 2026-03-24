@@ -4535,6 +4535,14 @@ client.on("message", async (msg) => {
             if (item.produto === "iPhone" && bateriaItem !== null)
               condicaoFinal = "Seminovo";
 
+            // ⛔ Só envia se condição for Novo ou Seminovo
+            const condNorm1 = (condicaoFinal || "").toLowerCase()
+              .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (!["novo", "seminovo"].includes(condNorm1)) {
+              console.log("⛔ Ignorado (lista): condição não informada:", item.produto, item.modelo, condicaoFinal);
+              continue;
+            }
+
             // ✅ Regra NOVOS (iPhone/iPad/Apple Watch): só envia se baixar preço vs último 12h
             const corCanonica = obterCorCanonica(item.descricaoItem);
 
@@ -4910,6 +4918,14 @@ client.on("message", async (msg) => {
         let condicaoFinal = condicao;
         if (produto === "iPhone" && bateriaItem !== null)
           condicaoFinal = "Seminovo";
+
+        // ⛔ Só envia se condição for Novo ou Seminovo
+        const condNorm2 = (condicaoFinal || "").toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (!["novo", "seminovo"].includes(condNorm2)) {
+          console.log("⛔ Ignorado (normal): condição não informada:", produto, modeloLimpo, condicaoFinal);
+          return;
+        }
 
         // ✅ Regra NOVOS (iPhone/iPad/Apple Watch): só envia se baixar preço vs último 12h
         const corCanonica = obterCorCanonica(descricao);
