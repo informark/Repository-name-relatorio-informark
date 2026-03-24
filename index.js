@@ -3,6 +3,8 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const fs = require("fs");
+const { carregarLimitesDinamicos, obterLimiteDinamico } = require("./price-rules");
+let limitesDinamicos = {};
 
 const ARQUIVO_CSV = "precos.csv";
 const ARQUIVO_CSV_DIA = "preco_dia.csv";
@@ -232,6 +234,7 @@ function salvarPromocaoCSV(
     ].join(SEP);
 
     fs.appendFileSync(ARQUIVO_PROMOCOES, linha + "\n", "utf8");
+    limitesDinamicos = carregarLimitesDinamicos(ARQUIVO_CSV);
     console.log("📊 Promo registrada em:", ARQUIVO_PROMOCOES);
   } catch (e) {
     console.log("⚠️ Falha ao salvar promoções CSV:", e.message);
@@ -4260,6 +4263,7 @@ client.on("ready", async () => {
   carregarEnviados();
   carregarJblUltimo();
   carregarNovosUltimo();
+  limitesDinamicos = carregarLimitesDinamicos(ARQUIVO_CSV);
   garantirCSV();
   verificarResetNaInicializacao();
   setInterval(verificarResetDiario, 60 * 1000);
@@ -4551,6 +4555,13 @@ client.on("message", async (msg) => {
             if (!["novo", "seminovo"].includes(condNorm1)) {
               console.log("⛔ Ignorado (lista): condição não informada:", item.produto, item.modelo, condicaoFinal);
               continue;
+            }
+
+            // Limite dinâmico por P25
+            const limiteDin = obterLimiteDinamico(limitesDinamicos, item.produto, item.modelo, item.armazenamento, condicaoFinal);
+            if (limiteDin && novoPreco > limiteDin.p25) {
+              console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${item.produto} ${item.modelo})`);
+              continue; // ou return no fluxo individual
             }
 
             // ✅ Regra NOVOS (iPhone/iPad/Apple Watch): só envia se baixar preço vs último 12h
@@ -4934,6 +4945,13 @@ client.on("message", async (msg) => {
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (!["novo", "seminovo"].includes(condNorm2)) {
           console.log("⛔ Ignorado (normal): condição não informada:", produto, modeloLimpo, condicaoFinal);
+          return;
+        }
+
+        // Limite dinâmico por P25
+        const limiteDin = obterLimiteDinamico(limitesDinamicos, produto, modeloLimpo, armazenamento, condicaoFinal);
+        if (limiteDin && novoPreco > limiteDin.p25) {
+          console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${produto} ${modeloLimpo})`);
           return;
         }
 
