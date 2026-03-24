@@ -559,7 +559,7 @@ $html = @"
             } else if (nomeAba === 'Planilha de Preços') {
                 document.getElementById('statAba').innerHTML = 'Planilha de Pre&ccedil;os';
             } else {
-                document.getElementById('statAba').innerHTML = 'Preco do dia';
+                document.getElementById('statAba').innerHTML = 'Preço do dia';
             }
 
             atualizarStatsGerais();
