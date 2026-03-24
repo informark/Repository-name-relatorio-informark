@@ -24,25 +24,26 @@ function carregarLimitesDinamicos(arquivoCsv) {
     if (linhas.length < 2) return limites;
 
     const header = linhas[0].split(",").map(h => h.replace(/"/g, "").trim());
-    const iProduto   = header.indexOf("Produto");
-    const iModelo    = header.indexOf("Modelo");
-    const iStorage   = header.indexOf("Armazenamento");
-    const iCondicao  = header.indexOf("Condicao");
-    const iPreco     = header.indexOf("Preco");
+    const iProduto  = header.indexOf("Produto");
+    const iModelo   = header.indexOf("Modelo");
+    const iStorage  = header.indexOf("Armazenamento");
+    const iCondicao = header.indexOf("Condicao");
+    const iPreco    = header.indexOf("Preco");
 
     if ([iProduto, iModelo, iStorage, iCondicao, iPreco].includes(-1)) return limites;
 
     const grupos = {};
 
     for (let i = 1; i < linhas.length; i++) {
-      const cols = linhas[i].split(",").map(c => c.replace(/"/g, "").trim());
+      const cols = linhas[i].match(/("([^"]*)"|[^,]*)/g)
+        ?.map(c => c.replace(/"/g, "").trim()) || [];
       if (cols.length < header.length) continue;
 
       const produto  = cols[iProduto];
       const modelo   = cols[iModelo];
       const storage  = cols[iStorage];
       const condicao = cols[iCondicao];
-      const preco    = parseFloat(cols[iPreco]);
+      const preco    = parseFloat(cols[iPreco].replace(",", "."));
 
       if (!produto || isNaN(preco) || preco <= 0) continue;
 
