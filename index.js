@@ -1701,7 +1701,7 @@ function ehMensagemDeBuscaSemPreco(texto) {
     .trim();
 
   const temBusca =
-    /\b(procuro|procurando|busco|compro|compramos|quero comprar|tenho interesse|interessa|preciso de|quem tem|alguem tem|alguém tem)\b/i.test(
+    /\b(procuro|procurando|busco|compro|comproo|comprooo|compramos|quero comprar|tenho interesse|interessa|preciso de|quem tem|alguem tem|alguém tem)\b/i.test(
       t,
     );
 
