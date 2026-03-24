@@ -6,6 +6,7 @@ const fs = require("fs");
 
 const ARQUIVO_CSV = "precos.csv";
 const ARQUIVO_CSV_DIA = "preco_dia.csv";
+const ARQUIVO_CSV_ONTEM = "preco_ontem.csv";
 const ARQUIVO_ULTIMO_RELATORIO = "ultimo_relatorio.txt";
 const ARQUIVO_PROMOCOES = "promocoes_enviadas.csv";
 
@@ -1161,6 +1162,15 @@ function garantirCSVDia() {
 }
 
 function resetarCSVDia() {
+  // Salva o dia anterior antes de zerar
+  try {
+    if (fs.existsSync(ARQUIVO_CSV_DIA)) {
+      fs.copyFileSync(ARQUIVO_CSV_DIA, ARQUIVO_CSV_ONTEM);
+      console.log("📁 preco_ontem.csv atualizado");
+    }
+  } catch (e) {
+    console.log("⚠️ Falha ao salvar preco_ontem.csv:", e.message);
+  }
   fs.writeFileSync(ARQUIVO_CSV_DIA, CSV_HEADER);
   console.log("🔄 preco_dia.csv zerado para novo dia");
 }
