@@ -923,4 +923,4 @@ $html = @"
 $destino = Join-Path $docs "index.html"
 [System.IO.File]::WriteAllText($destino, $html, [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "HTML gerado em docs\index.html - dashboard com aba Preco do dia"
+Write-Host "HTML gerado em docs\index.html - dashboard com aba Preço do dia"
