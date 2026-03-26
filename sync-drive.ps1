@@ -7,6 +7,7 @@ $arquivosFixos = @(
     "precos.csv",
     "promocoes_enviadas.csv",
     "preco_dia.csv"
+    "preco_ontem"
 )
 
 foreach ($arquivo in $arquivosFixos) {
