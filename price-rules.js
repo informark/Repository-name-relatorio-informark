@@ -35,7 +35,8 @@ function carregarLimitesDinamicos(arquivoCsv) {
     const grupos = {};
 
     for (let i = 1; i < linhas.length; i++) {
-      const cols = parseCSVLine(linhas[i])
+      const cols = linhas[i].match(/("([^"]*)"|[^,]*)/g)
+        ?.map(c => c.replace(/"/g, "").trim()) || [];
       if (cols.length < header.length) continue;
 
       const produto  = cols[iProduto];
@@ -58,13 +59,10 @@ function carregarLimitesDinamicos(arquivoCsv) {
         media: calcularMedia(valores),
         total: valores.length,
       };
-      console.log(`📊 Limite dinâmico carregado: ${key} → P25:       ${limites[key].p25} | Média: ${limites[key].media} | Total: ${limites[key].total}`);
     }
   } catch (e) {
     console.log("⚠️ Falha ao carregar limites dinâmicos:", e.message);
   }
-
-  console.log(`✅ Limites dinâmicos carregados: ${Object.keys(limites).length} grupos`);
 
   return limites;
 }
@@ -72,24 +70,6 @@ function carregarLimitesDinamicos(arquivoCsv) {
 function obterLimiteDinamico(limites, produto, modelo, armazenamento, condicao) {
   const key = `${produto}|${modelo}|${armazenamento}|${condicao}`;
   return limites[key] || null; // { p25, media, total } ou null
-}
-
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"') {
-      inQuotes = !inQuotes;
-    } else if (line[i] === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += line[i];
-    }
-  }
-  result.push(current.trim());
-  return result;
 }
 
 module.exports = { carregarLimitesDinamicos, obterLimiteDinamico };
