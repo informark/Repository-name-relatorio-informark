@@ -59,10 +59,13 @@ function carregarLimitesDinamicos(arquivoCsv) {
         media: calcularMedia(valores),
         total: valores.length,
       };
+      console.log(`📊 Limite dinâmico carregado: ${key} → P25:       ${limites[key].p25} | Média: ${limites[key].media} | Total: ${limites[key].total}`);
     }
   } catch (e) {
     console.log("⚠️ Falha ao carregar limites dinâmicos:", e.message);
   }
+
+  console.log(`✅ Limites dinâmicos carregados: ${Object.keys(limites).length} grupos`);
 
   return limites;
 }
