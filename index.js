@@ -949,7 +949,7 @@ const LIMITES_NOVO_MAX_AVISTA = {
 
   "17 Pro": { "256GB": 7701.0 },
 
-  "17 Pro Max": { "256GB": 8500.0 },
+  "17 Pro Max": { "256GB": 8701.0 },
 };
 
 const REGRA_SEMINOVO = { addMax: 0, minDiff: 500 };
@@ -3744,9 +3744,7 @@ function extrairItensDeLista(texto) {
           bufferJunto,
         );
       const semModeloNum =
-        !/\b(1[0-7]|se)\s*(pro|max|plus|mini|air)?\s*(64|128|256|512)\s*g/i.test(
-          bufferJunto,
-        );
+        !/\b(1[0-7]|se)\s*(pro\s*max|promax|pro|max|plus|mini|air)?\s*(64|128|256|512)\s*g/i.test(bufferJunto)
       const temSufixoDiferente =
         ultimoItemBase &&
         ultimoItemBase.modelo &&
