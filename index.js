@@ -3803,7 +3803,7 @@ function extrairItensDeLista(texto) {
     if (!linha || !linha.trim()) continue;
     buffer.push(linha);
 
-    const bloco = buffer.join(" | ");
+    let bloco = buffer.join(" | ");
     const preco = extrairPrecoSeguro(linha, bloco);
 
     if (contextoProduto === "Peça") {
@@ -3817,6 +3817,14 @@ function extrairItensDeLista(texto) {
     if (precoPareceArmazenamento(bloco, preco)) continue;
 
     let detectado = detectarProduto(bloco);
+
+    // Se a linha com preço pertence a produto diferente do buffer, descartar contaminação
+    const detectadoLinha = detectarProduto(linha);
+    if (detectadoLinha && detectadoLinha !== "Outro" && detectado !== detectadoLinha) {
+      buffer = [linha];
+      bloco = linha;
+      detectado = detectadoLinha;
+    }
 
     if (contextoProduto === "Apple Watch" && detectado === "iPhone") {
       const temSinalForteIphone =
