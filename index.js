@@ -3,7 +3,10 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const fs = require("fs");
-const { carregarLimitesDinamicos, obterLimiteDinamico } = require("./price-rules");
+const {
+  carregarLimitesDinamicos,
+  obterLimiteDinamico,
+} = require("./price-rules");
 let limitesDinamicos = {};
 
 const ARQUIVO_CSV = "precos.csv";
@@ -96,7 +99,12 @@ function novoPodeEnviarPorPreco({
   const prod = (produto || "").toString().trim();
   if (!["iPhone", "iPad", "Apple Watch"].includes(prod)) return true;
 
-  const cond = (condicaoFinal || "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const cond = (condicaoFinal || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   if (!["novo", "seminovo", "nao informado"].includes(cond)) return true;
 
   const m = (modelo || "modelo não informado").toString().trim();
@@ -127,7 +135,12 @@ function novoMarcarEnviado({
   condicaoFinal,
 }) {
   const prod = (produto || "").toString().trim();
-  const cond = (condicaoFinal || "").toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const cond = (condicaoFinal || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   if (!["iPhone", "iPad", "Apple Watch"].includes(prod)) return;
   if (!["novo", "seminovo", "nao informado"].includes(cond)) return;
 
@@ -1044,7 +1057,7 @@ function inferirCondicaoPorTabelas({
 
     if (!Number.isFinite(p)) return null;
 
-    const ehIpad11 = /\b11\b/.test(modeloTxt);
+    const ehIpad11 = /\b11\b/.test(modeloTxt) && !/pro/i.test(modeloTxt);
 
     if (ehIpad11) {
       if (temBateriaOuSeminovoNoTexto(descricao || "")) return null;
@@ -1069,6 +1082,11 @@ function inferirCondicaoPorTabelas({
       if (p > 4500) return "Novo";
     }
 
+    const ehS11 = /s\s*11\b/i.test(modeloTxt);
+    if (ehS11) {
+      if (temBateriaOuSeminovoNoTexto(descricao || "")) return null;
+      if (p >= 2300) return "Novo";
+    }
     return null;
   }
 
@@ -2384,6 +2402,7 @@ function detectarCondicaoPorProduto(texto, produto) {
     .replace(/[\u0300-\u036f]/g, "") // tira acentos
     .replace(/\s+/g, " ")
     .trim();
+    .replace(/_/g, " ");   // ← adiciona esta linha
 
   // ✅ 1) SEMINOVO primeiro (evita "semi novo" cair em "novo")
   if (/(semi\W*nov[oa]|seminov[oa]|usado|vitrine|revisado)/i.test(t))
@@ -2630,7 +2649,8 @@ function detectarProduto(texto) {
     /\b(64|128|256|512)\s*(gb)?\b/i.test(t) &&
     /🔋|\bbateria\b|\bsaude\b|\bbattery\b/i.test(t) &&
     !/\b(samsung|galaxy|xiaomi|redmi|motorola|realme|poco|lenovo)\b/i.test(t)
-  ) return "iPhone";
+  )
+    return "iPhone";
 
   const temAcessorio =
     /\b(fonte|carregador|cabo|pelicula|película|capinha|case|adaptador|airtag|earpods|fone|pencil)\b/i.test(
@@ -3565,6 +3585,16 @@ function extrairItensDeLista(texto) {
 
     const low = limpar(linha).replace(/[*_~]/g, "").trim();
 
+    // Ignora listas de serviço de bateria / mão de obra
+    if (
+      !extrairPreco(linha) &&
+      /\b(shop\s*batterie|mao\s*de\s*obra|troca\s*de\s*bateria)\b/i.test(low)
+    ) {
+      contextoProduto = "Peça";
+      buffer = [];
+      continue;
+    }
+
     // Só muda contexto quando a linha contiver palavra-chave de condição (sem preço e sem dados de produto)
     const ehLinhaProduto =
       /\b(64|128|256|512)\s*g/i.test(low) ||
@@ -3753,7 +3783,9 @@ function extrairItensDeLista(texto) {
           bufferJunto,
         );
       const semModeloNum =
-        !/\b(1[0-7]|se)\s*(pro\s*max|promax|pro|max|plus|mini|air)?\s*(64|128|256|512)\s*g/i.test(bufferJunto)
+        !/\b(1[0-7]|se)\s*(pro\s*max|promax|pro|max|plus|mini|air)?\s*(64|128|256|512)\s*g/i.test(
+          bufferJunto,
+        );
       const temSufixoDiferente =
         ultimoItemBase &&
         ultimoItemBase.modelo &&
@@ -3821,7 +3853,11 @@ function extrairItensDeLista(texto) {
 
     // Se a linha com preço pertence a produto diferente do buffer, descartar contaminação
     const detectadoLinha = detectarProduto(linha);
-    if (detectadoLinha && detectadoLinha !== "Outro" && detectado !== detectadoLinha) {
+    if (
+      detectadoLinha &&
+      detectadoLinha !== "Outro" &&
+      detectado !== detectadoLinha
+    ) {
       buffer = [linha];
       bloco = linha;
       detectado = detectadoLinha;
@@ -4313,8 +4349,8 @@ client.on("ready", async () => {
     "Hoje pode ser o dia do seu upgrade 📱🔥",
     "Mais rapidez, mais praticidade, mais você no controle 😎",
     "Bom dia! Comece com o melhor… e colha o melhor 🌅",
-    "Seu próximo nível começa com uma boa escolha 💡📲"
-];
+    "Seu próximo nível começa com uma boa escolha 💡📲",
+  ];
 
   let bomDiaEnviadoHoje = "";
 
@@ -4565,17 +4601,32 @@ client.on("message", async (msg) => {
               condicaoFinal = "Seminovo";
 
             // ⛔ Só envia se condição for Novo ou Seminovo
-            const condNorm1 = (condicaoFinal || "").toLowerCase()
-              .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const condNorm1 = (condicaoFinal || "")
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "");
             if (!["novo", "seminovo"].includes(condNorm1)) {
-              console.log("⛔ Ignorado (lista): condição não informada:", item.produto, item.modelo, condicaoFinal);
+              console.log(
+                "⛔ Ignorado (lista): condição não informada:",
+                item.produto,
+                item.modelo,
+                condicaoFinal,
+              );
               continue;
             }
 
             // Limite dinâmico por P25
-            const limiteDin = obterLimiteDinamico(limitesDinamicos, item.produto, item.modelo, item.armazenamento || "", condicaoFinal);
+            const limiteDin = obterLimiteDinamico(
+              limitesDinamicos,
+              item.produto,
+              item.modelo,
+              item.armazenamento || "",
+              condicaoFinal,
+            );
             if (limiteDin && novoPreco > limiteDin.p25) {
-              console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${item.produto} ${item.modelo})`);
+              console.log(
+                `⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${item.produto} ${item.modelo})`,
+              );
               continue; // ou return no fluxo individual
             }
 
@@ -4663,10 +4714,13 @@ client.on("message", async (msg) => {
             // ✅ Regra iPad 11: só envia se preço <= R$2900
             if (
               item.produto === "iPad" &&
-              /\b11\b/.test(item.modelo) &&
+              /\b11\b/.test(item.modelo) && !/pro/i.test(item.modelo) &&
               novoPreco > 2900
             ) {
-              console.log("⛔ iPad 11 ignorado: preço acima de R$2900:", novoPreco);
+              console.log(
+                "⛔ iPad 11 ignorado: preço acima de R$2900:",
+                novoPreco,
+              );
               continue;
             }
 
@@ -4956,17 +5010,32 @@ client.on("message", async (msg) => {
           condicaoFinal = "Seminovo";
 
         // ⛔ Só envia se condição for Novo ou Seminovo
-        const condNorm2 = (condicaoFinal || "").toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const condNorm2 = (condicaoFinal || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
         if (!["novo", "seminovo"].includes(condNorm2)) {
-          console.log("⛔ Ignorado (normal): condição não informada:", produto, modeloLimpo, condicaoFinal);
+          console.log(
+            "⛔ Ignorado (normal): condição não informada:",
+            produto,
+            modeloLimpo,
+            condicaoFinal,
+          );
           return;
         }
 
         // Limite dinâmico por P25
-        const limiteDin = obterLimiteDinamico(limitesDinamicos, produto, modeloLimpo, armazenamento || "", condicaoFinal);
+        const limiteDin = obterLimiteDinamico(
+          limitesDinamicos,
+          produto,
+          modeloLimpo,
+          armazenamento || "",
+          condicaoFinal,
+        );
         if (limiteDin && novoPreco > limiteDin.p25) {
-          console.log(`⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${produto} ${modeloLimpo})`);
+          console.log(
+            `⛔ Bloqueado por P25 dinâmico: R$${novoPreco} > P25 R$${limiteDin.p25} (${produto} ${modeloLimpo})`,
+          );
           return;
         }
 
@@ -5040,7 +5109,7 @@ client.on("message", async (msg) => {
         // ✅ Regra iPad 11: só envia se preço <= R$2900
         if (
           produto === "iPad" &&
-          /\b11\b/.test(modeloLimpo) &&
+          /\b11\b/.test(modeloLimpo) && !/pro/i.test(modeloLimpo) &&
           novoPreco > 2900
         ) {
           console.log("⛔ iPad 11 ignorado: preço acima de R$2900:", novoPreco);
